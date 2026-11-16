@@ -60,6 +60,8 @@
   const NUM_RE = new RegExp('^([b#]?)([1-7])(' + LQ + ')(?:/([b#]?)([1-7]))?$');
 
   function parseChord(tok) {
+    const pm = /^\*+/.exec(tok); // marker such as [*G]: keep the star, still transpose the chord
+    if (pm) { const c = parseChord(tok.slice(pm[0].length)); if (c) c.pre = pm[0]; return c; }
     let m = LETTER_RE.exec(tok);
     if (m) return { t: 'L', pc: pcOf(m[1]), q: m[2], bass: m[3] !== undefined ? pcOf(m[3]) : null, root: m[1], bassName: m[3] };
     m = NUM_RE.exec(tok);
@@ -81,7 +83,8 @@
   const accStr = (a) => (a < 0 ? 'b' : a > 0 ? '#' : '');
 
   // ctx: { mode:'letters'|'numbers', tonic (major tonic pc of ORIGINAL key or null), shift, capo, flats, out (tonic pc being played) }
-  function renderChord(ch, ctx) {
+  function renderChord(ch, ctx) { return (ch.pre || '') + renderChordCore(ch, ctx); }
+  function renderChordCore(ch, ctx) {
     const { mode, tonic, shift, capo, flats, out } = ctx;
     const move = shift - capo;
     if (mode === 'numbers' && tonic != null) {

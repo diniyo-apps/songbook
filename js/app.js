@@ -38,7 +38,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '1.1.0', build: '2026-11-16' });
+const APP = Object.freeze({ name: 'Songbook', version: '1.1.1', build: '2026-11-17' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -947,7 +947,9 @@ const A = {
   'song-dup': async () => { const o = curSong(); const n = { ...o, id: uid(), title: o.title + ' copy', modified: now() }; if (o.fmt === 'pdf') { const b = await DB.get('blobs', o.pdfId); n.pdfId = uid(); if (b) await DB.put('blobs', { id: n.pdfId, data: b.data }); } await saveSong(n); closeSheet(); toast('Duplicated'); go('#/song/' + encodeURIComponent(n.id)); },
   'song-trash': () => { const s = curSong(); confirmBox('Move to trash?', `"${s.title}" can be restored any time from Settings \u25b8 Trash.`, 'Move to trash', async () => { s.deleted = now(); await saveSong(s); toast('Moved to trash'); A['song-back'](); }, true); },
   'open-key': () => openKeySheet(),
-  'shift': (el) => changeHolder((s, h) => { if (!s.key) { toast('Choose the key first'); openKeySheet(); return; } h.shift = normShift((h.shift || 0) + (+el.dataset.d)); }),
+  'shift': (el) => changeHolder((s, h) => {
+    if (!s.key && s.fmt === 'text') { const k = Music.inferKey(Music.collectChords(s.body || '').letters); if (k) s.key = k; } // no key saved: use the key the chords imply
+    if (!s.key) { toast('Choose the key first'); openKeySheet(); return; } h.shift = normShift((h.shift || 0) + (+el.dataset.d)); }),
   'capo': (el) => changeHolder((s, h) => { h.capo = Math.max(0, Math.min(11, (h.capo || 0) + (+el.dataset.d))); }),
   'capo-x': () => changeHolder((s, h) => { h.capo = 0; }),
   'reset-key': () => changeHolder((s, h) => { h.shift = 0; h.capo = 0; }),
@@ -1091,6 +1093,6 @@ async function boot() {
   }
 }
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
-window.SB = { S, A, render }; // handy for debugging/tests
+window.SB = { S, A, render, saveSong }; // handy for debugging/tests
 boot();
 })();
