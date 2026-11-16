@@ -37,7 +37,58 @@ const IC = {
 const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n] || ''}</svg>`;
 
 // ───────────────────────── state ─────────────────────────
-const DEFAULTS = { theme: 'night', fontSize: 19, mode: 'letters', chords: true, invertPdf: true, pdfZoom: 100, scrollSpeed: 3, wake: true };
+// ── app identity (kept in code, not in any editable text/config file) ──
+const APP = Object.freeze({ name: 'Songbook', version: '1.1.0', build: '2026-11-16' });
+const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
+const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
+function copyrightLine() {
+  const dec = (b) => { try { return new TextDecoder().decode(Uint8Array.from(atob(b), (c) => c.charCodeAt(0))); } catch (_) { return ''; } };
+  const pool = _CR.concat(self.__CR2 ? [self.__CR2] : []);
+  for (const b of pool) { const t = dec(b); if (t && MD5.text(t) === _CR_HASH) return t; }
+  return '© 2026 Sajan Rajaratne, trading as Diniyo Apps. All rights reserved.';
+}
+const PRESETS = [
+  { id: 'night', name: 'Night', bg: '#0d1016', accent: '#86b4f5', chord: '#e8c48e' },
+  { id: 'oled', name: 'Black', bg: '#000000', accent: '#86b4f5', chord: '#e8c48e' },
+  { id: 'warm', name: 'Warm', bg: '#15110d', accent: '#dca46a', chord: '#f0b97a' },
+  { id: 'forest', name: 'Forest', bg: '#0c1411', accent: '#7fcfa0', chord: '#e6cf94' },
+  { id: 'ocean', name: 'Ocean', bg: '#0a1218', accent: '#6cc3d8', chord: '#f0d08c' },
+  { id: 'plum', name: 'Plum', bg: '#130f17', accent: '#c4a1ec', chord: '#f0c4a0' },
+  { id: 'rose', name: 'Rose', bg: '#17100f', accent: '#ee9aa8', chord: '#f0d0a0' },
+  { id: 'slate', name: 'Slate', bg: '#14161a', accent: '#9aa8bd', chord: '#e6c98f' },
+];
+const DEFAULTS = { theme: 'night', bg: '#0d1016', accent: '#86b4f5', chord: '#e8c48e', style: 'solid', glass: 3, soften: true, fontSize: 19, mode: 'letters', chords: true, invertPdf: true, pdfZoom: 100, scrollSpeed: 3, wake: true };
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+function hexToHsl(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return [220, 0.2, 0.08];
+  const n = parseInt(m[1], 16); const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, sat = 0; const l = (mx + mn) / 2; const d = mx - mn;
+  if (d) { sat = d / (1 - Math.abs(2 * l - 1)); if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; h *= 60; if (h < 0) h += 360; }
+  return [h, sat, l];
+}
+const hsl = (h, sat, l, a) => `hsl(${h.toFixed(0)} ${(sat * 100).toFixed(1)}% ${(l * 100).toFixed(1)}%${a == null ? '' : ' / ' + a})`;
+function hslToHex(h, sat, l) {
+  const k = (n) => (n + h / 30) % 12, a = sat * Math.min(l, 1 - l); const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return '#' + [f(0), f(8), f(4)].map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('');
+}
+function applyTheme() {
+  const st = S.settings, soft = st.soften !== false, glass = st.style === 'glass', lv = clamp(+st.glass || 3, 1, 5);
+  let [bh, bs, bl] = hexToHsl(st.bg), [ah, as, al] = hexToHsl(st.accent), [ch, cs, cl] = hexToHsl(st.chord);
+  if (soft) { bl = Math.min(bl, 0.14); bs = Math.min(bs, 0.5); al = clamp(al, 0.6, 0.76); as = Math.min(as, 0.78); cl = clamp(cl, 0.64, 0.8); cs = Math.min(cs, 0.72); }
+  const V = {
+    '--bg': hsl(bh, bs, bl), '--sheet': hsl(bh, bs * 0.9, Math.min(bl + 0.045, 0.2)),
+    '--sheet-glass': hsl(bh, bs * 0.9, Math.min(bl + 0.045, 0.2), (0.9 - lv * 0.07).toFixed(2)),
+    '--text': hsl(bh, 0.14, 0.86), '--text2': hsl(bh, 0.1, 0.7), '--muted': hsl(bh, 0.08, 0.55), '--title': hsl(bh, 0.16, 0.92),
+    '--accent': hsl(ah, as, al), '--accent-bg': hsl(ah, as, al, 0.15), '--chord': hsl(ch, cs, cl), '--head': hsl(ah, 0.38, 0.77),
+    '--line': hsl(bh, 0.2, 0.92, glass ? 0.12 : 0.085), '--card': hsl(bh, 0.2, 0.95, glass ? 0.07 : 0.045), '--card2': hsl(bh, 0.2, 0.95, glass ? 0.12 : 0.08),
+    '--glass': hsl(bh, bs, Math.min(bl + 0.05, 0.2), glass ? (0.86 - lv * 0.06).toFixed(2) : 0.82),
+    '--orb1': hsl(ah, as, 0.55, (0.08 + lv * 0.05).toFixed(2)), '--orb2': hsl(ch, cs, 0.55, (0.05 + lv * 0.035).toFixed(2)), '--orb3': hsl((ah + 150) % 360, 0.45, 0.5, (0.06 + lv * 0.04).toFixed(2)),
+    '--glow1': hsl(ah, as, al, 0.1), '--glow2': hsl(ch, cs, cl, 0.045), '--blur': 10 + lv * 6 + 'px', '--on-accent': '#0b1018',
+  };
+  const r = document.documentElement; Object.keys(V).forEach((k) => r.style.setProperty(k, V[k]));
+  r.dataset.style = glass ? 'glass' : 'solid'; r.dataset.theme = st.theme;
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = hslToHex(bh, bs, bl);
+}
 const S = {
   songs: [], sets: [], settings: { ...DEFAULTS },
   ui: { q: '', sort: 'title', filter: 'all', select: null, scroll: {} },
@@ -126,6 +177,11 @@ function makeCtx(song, holder) {
 const keyLabel = (song, holder) => (song.key ? Music.shiftKey(song.key, (holder || song).shift || 0) : '');
 function hasNumbers(song) { return song.fmt === 'text' && Music.collectChords(song.body || '').numbers > 0; }
 
+function chordAttr(c, ctx) {
+  if (!c || !c.ch) return '';
+  if (c.ch.t === 'N' && ctx.tonic == null) return '';
+  return ` data-chord="${esc(Music.renderChord(c.ch, { ...ctx, mode: 'letters' }))}"`;
+}
 function chordHtml(c, ctx) {
   if (!c) return '';
   if (c.text !== undefined) return esc(c.text);
@@ -159,13 +215,13 @@ function renderBody(song, holder) {
     if (r.k === 'blank') { if (!lastBlank) html += '<div class="gap"></div>'; lastBlank = true; continue; }
     if (r.k === 'head') { html += `<div class="sec">${esc(r.text)}</div>`; lastBlank = false; continue; }
     if (r.k === 'chords') {
-      if (show) { html += '<div class="cr">' + r.toks.map((t) => (t.ch ? `<span class="ch">${esc(Music.renderChord(t.ch, ctx))}</span>` : `<span class="bar">${esc(t.raw)}</span>`)).join('') + '</div>'; lastBlank = false; }
+      if (show) { html += '<div class="cr">' + r.toks.map((t) => (t.ch ? `<span class="ch"${chordAttr({ ch: t.ch }, ctx)}>${esc(Music.renderChord(t.ch, ctx))}</span>` : `<span class="bar">${esc(t.raw)}</span>`)).join('') + '</div>'; lastBlank = false; }
       continue;
     }
     lastBlank = false;
     const has = r.segs.some((s) => s.c);
     if (!has || !show) { html += `<div class="ln plain">${esc(r.segs.map((s) => s.t).join('')) || '&nbsp;'}</div>`; continue; }
-    html += '<div class="ln">' + toWords(r.segs).map((w) => '<span class="wd">' + w.map((p) => `<span class="sg"><span class="ch${p.c ? '' : ' e'}">${p.c ? chordHtml(p.c, ctx) : '&nbsp;'}</span><span class="ly">${esc(p.t) || '&nbsp;'}</span></span>`).join('') + '</span>').join('') + '</div>';
+    html += '<div class="ln">' + toWords(r.segs).map((w) => '<span class="wd">' + w.map((p) => `<span class="sg"><span class="ch${p.c ? '' : ' e'}"${p.c ? chordAttr(p.c, ctx) : ''}>${p.c ? chordHtml(p.c, ctx) : '&nbsp;'}</span><span class="ly">${esc(p.t) || '&nbsp;'}</span></span>`).join('') + '</span>').join('') + '</div>';
   }
   return html || '<p class="muted pad">This song is empty. Tap the pencil to add lyrics and chords.</p>';
 }
@@ -217,7 +273,7 @@ function render() {
   S._routeKey = key;
   const sc = S.ui.scroll[key];
   window.scrollTo(0, key === 'song' || key === 'edit' ? 0 : sc || 0);
-  document.documentElement.dataset.theme = S.settings.theme;
+  applyTheme();
 }
 function shell(tab, inner) {
   const t = (id, label, icon, href) => `<a class="tab ${tab === id ? 'on' : ''}" href="${href}">${ico(icon)}<span>${label}</span></a>`;
@@ -329,7 +385,14 @@ async function viewSong(app, r) {
     document.addEventListener('touchstart', ts, { passive: true }); document.addEventListener('touchend', te, { passive: true });
     const old = cleanup; cleanup = () => { document.removeEventListener('touchstart', ts); document.removeEventListener('touchend', te); if (old) old(); };
   }
-  const kd = (e) => { if (!set || /input|textarea|select/i.test(e.target.tagName)) return; if (e.key === 'ArrowRight') setStep(1); if (e.key === 'ArrowLeft') setStep(-1); };
+  const kd = (e) => {
+    if (/input|textarea|select/i.test(e.target.tagName) || $('#modal-root').classList.contains('open')) return;
+    const k = e.key, page = window.innerHeight * 0.85;
+    if (k === 'PageDown' || k === ' ' || k === 'ArrowDown') { e.preventDefault(); window.scrollBy({ top: page, behavior: 'smooth' }); }
+    else if (k === 'PageUp' || k === 'ArrowUp') { e.preventDefault(); window.scrollBy({ top: -page, behavior: 'smooth' }); }
+    else if (set && k === 'ArrowRight') setStep(1);
+    else if (set && k === 'ArrowLeft') setStep(-1);
+  };
   document.addEventListener('keydown', kd);
   const prevClean = cleanup; cleanup = () => { document.removeEventListener('keydown', kd); stopScroll(); releaseWake(); if (prevClean) prevClean(); };
   acquireWake();
@@ -354,7 +417,9 @@ function paintSong() {
   const numbersOn = song.fmt === 'text' && ctx.mode === 'numbers';
   const hint = song.fmt === 'text' && !song.key && S.settings.mode === 'letters' && hasNumbers(song) ? '<p class="hint">This song uses Nashville numbers. Tap <b>Key</b> and choose a key to see the letter chords.</p>' : '';
   $('#pills').innerHTML =
-    `<button class="pill key" data-act="open-key">${ico('keys')}<span>Key <b>${esc(k || '—')}</b></span></button>` +
+    (song.fmt === 'text'
+      ? `<span class="keygrp"><button class="kb" data-act="shift" data-d="-1" aria-label="Key down">−</button><button class="pill key" data-act="open-key">${ico('keys')}<span>Key <b>${esc(k || '—')}</b></span></button><button class="kb" data-act="shift" data-d="1" aria-label="Key up">+</button></span>`
+      : `<button class="pill key" data-act="open-key">${ico('keys')}<span>Key <b>${esc(k || '—')}</b></span></button>`) +
     (capo ? `<span class="pill">Capo ${capo}</span>` : '') +
     (song.fmt === 'text' ? `<button class="pill ${numbersOn ? 'on' : ''}" data-act="toggle-mode">${numbersOn ? 'Numbers' : 'Letters'}</button>` : '<span class="pill">PDF</span>') + hint;
   const set = S.cur.setId && setById(S.cur.setId);
@@ -438,7 +503,7 @@ async function changeHolder(fn) {
   const song = curSong(), holder = curHolder();
   fn(song, holder);
   if (holder === song) await saveSong(song); else await saveSet(setById(S.cur.setId));
-  paintSong(); openKeySheet();
+  paintSong(); if ($('#modal-root').classList.contains('open')) openKeySheet();
 }
 const normShift = (n) => { n = ((n % 12) + 12) % 12; return n > 6 ? n - 12 : n; };
 
@@ -572,21 +637,46 @@ function viewSettings() {
   </section>
   <section class="card"><h3>Automatic safety copies</h3><p class="small muted">The app quietly keeps recent copies of your whole library on this device and one more before anything risky (import, restore, delete forever).</p><div id="snaplist" class="snaplist"></div></section>
   <section class="card"><h3>Trash</h3><a class="row" href="#/trash"><span class="rt"><span class="t">Deleted songs</span><span class="a">${trashed().length} in trash — restore any time</span></span>${ico('chev', 'dim')}</a></section>
+  <section class="card"><h3>Appearance</h3>
+    <div class="kv"><label>Style</label><div class="seg"><button class="${st.style !== 'glass' ? 'on' : ''}" data-act="style" data-v="solid">Solid</button><button class="${st.style === 'glass' ? 'on' : ''}" data-act="style" data-v="glass">Glass</button></div></div>
+    ${st.style === 'glass' ? `<div class="kv"><label>Glass strength</label><div class="stepper"><button data-act="gl" data-d="-1">−</button><b>${st.glass}</b><button data-act="gl" data-d="1">+</button></div></div>` : ''}
+    <div class="swatches">${PRESETS.map((p) => `<button class="swatch ${st.theme === p.id ? 'on' : ''}" data-act="preset" data-v="${p.id}" style="--b:${p.bg};--a:${p.accent};--c:${p.chord}"><i></i><span>${p.name}</span></button>`).join('')}</div>
+    <p class="small muted pad0">Or choose any colour you like:</p>
+    <div class="kv"><label>Background</label><input class="clr" type="color" data-color="bg" value="${esc(st.bg)}"></div>
+    <div class="kv"><label>Highlights and buttons</label><input class="clr" type="color" data-color="accent" value="${esc(st.accent)}"></div>
+    <div class="kv"><label>Chords</label><input class="clr" type="color" data-color="chord" value="${esc(st.chord)}"></div>
+    <div class="kv"><label>Soften colours for the eyes</label><button class="sw ${st.soften !== false ? 'on' : ''}" data-act="sw" data-k="soften" aria-label="toggle"></button></div>
+    <p class="small muted pad0">Softening keeps backgrounds dark and highlights gentle, whatever colour you pick.</p>
+  </section>
   <section class="card"><h3>Display</h3>
-    <div class="kv"><label>Theme</label><div class="seg">${[['night', 'Night'], ['oled', 'Black'], ['warm', 'Warm']].map(([v, l]) => `<button class="${st.theme === v ? 'on' : ''}" data-act="theme" data-v="${v}">${l}</button>`).join('')}</div></div>
     <div class="kv"><label>Text size</label><div class="stepper"><button data-act="fs" data-d="-1">−</button><b>${st.fontSize}</b><button data-act="fs" data-d="1">+</button></div></div>
     <div class="kv"><label>Chords as</label><div class="seg"><button class="${st.mode === 'letters' ? 'on' : ''}" data-act="mode" data-m="letters">Letters</button><button class="${st.mode === 'numbers' ? 'on' : ''}" data-act="mode" data-m="numbers">Numbers</button></div></div>
     <div class="kv"><label>Dim PDFs for dark mode</label><button class="sw ${st.invertPdf ? 'on' : ''}" data-act="sw" data-k="invertPdf" aria-label="toggle"></button></div>
     <div class="kv"><label>Keep screen awake</label><button class="sw ${st.wake ? 'on' : ''}" data-act="sw" data-k="wake" aria-label="toggle"></button></div>
     <div class="kv"><label>Auto-scroll speed</label><div class="stepper"><button data-act="spd" data-d="-1">−</button><b>${st.scrollSpeed}</b><button data-act="spd" data-d="1">+</button></div></div>
   </section>
-  <section class="card"><h3>Storage</h3><div class="btnrow tight"><button class="btn" data-act="free-space">Free up space</button><button class="btn" data-act="check-update">Check for update</button></div><p class="small muted">Songbook v${window.SB_VERSION || '1'} · works fully offline.</p></section>`;
+  <section class="card"><h3>Storage</h3><div class="btnrow tight"><button class="btn" data-act="free-space">Free up space</button><button class="btn" data-act="check-update">Check for update</button></div><p class="small muted">Works fully offline. Bluetooth page-turner pedals work (Page Up / Page Down).</p></section>
+  ${aboutCard()}`;
 }
 async function paintSettingsAsync() {
   try { const e = await navigator.storage.estimate(); const u = $('#usage'); if (u) u.textContent = fmtBytes(e.usage || 0); } catch (_) { const u = $('#usage'); if (u) u.textContent = '—'; }
   const box = $('#snaplist'); if (!box) return;
   const snaps = (await DB.all('snaps')).sort((a, b) => b.time - a.time).slice(0, 8);
   box.innerHTML = snaps.length ? snaps.map((s) => `<div class="row"><span class="rt"><span class="t">${fmtTime(s.time)}</span><span class="a">${s.songs.filter((x) => !x.deleted).length} songs · ${s.sets.length} sets · ${esc(s.reason)}</span></span><button class="btn sm" data-act="snap-restore" data-id="${esc(s.id)}">${ico('restore')} Restore</button></div>`).join('') : '<p class="small muted">None yet — the first one is made right after your first change.</p>';
+}
+function aboutCard() {
+  return `<section class="card about"><h3>About</h3>
+    <div class="abhead"><img src="icons/icon-192.png" alt="" width="56" height="56"><div><b>${esc(APP.name)}</b><span>Version ${esc(APP.version)} · ${esc(APP.build)}</span></div></div>
+    <p class="small muted">Your songs stay on this device. Nothing is uploaded.</p>
+    <p class="cr-line">${esc(copyrightLine())}</p></section>`;
+}
+function openChordSheet(name) {
+  const c = Chords.info(name); if (!c) return;
+  sheet(`<div class="sh-h">${esc(name)}</div>
+    <p class="center muted small">Notes: <b class="cn">${c.notes.map(esc).join('  ')}</b>${c.bass ? ` · Bass: <b class="cn">${esc(c.bass)}</b>` : ''}${c.approx ? ' · closest match' : ''}</p>
+    <div class="dg"><div><h4>Guitar</h4>${c.guitar || '<p class="muted small">No guitar shape saved for this chord yet.</p>'}</div></div>
+    <div class="dg"><div><h4>Piano</h4>${c.piano}</div></div>
+    <div class="btnrow"><button class="btn primary" data-act="close-sheet">Done</button></div>`);
 }
 function viewTrash() {
   const t = trashed().sort((a, b) => b.deleted - a.deleted);
@@ -829,7 +919,10 @@ const A = {
   'pick-go': async () => { const c = sheetCtx; const ids = [...c.picked]; const sid = c.pickSet; closeSheet(); await addSongsToSet(sid, ids); render(); },
   'item-up': async (el) => moveItem(el.dataset.i | 0, -1),
   'item-down': async (el) => moveItem(el.dataset.i | 0, 1),
-  'item-del': async (el) => { const r = route(); const set = setById(r.id); set.items.splice(el.dataset.i | 0, 1); await saveSet(set); render(); },
+  'item-del': (el) => {
+    const r = route(); const set = setById(r.id); const i = el.dataset.i | 0; const sg = songById(set.items[i] && set.items[i].songId);
+    confirmBox('Remove from this set?', `"${sg ? sg.title : 'This song'}" will be removed from the set. The song stays in your songbook.`, 'Remove', async () => { set.items.splice(i, 1); await saveSet(set); render(); }, true);
+  },
   'set-more': (el) => {
     sheet(`<div class="sh-h">Set</div><button class="row" data-act="set-rename" data-id="${esc(el.dataset.id)}"><span class="rt"><span class="t">Rename</span></span></button>
       <button class="row" data-act="set-dup" data-id="${esc(el.dataset.id)}"><span class="rt"><span class="t">Duplicate</span></span></button>
@@ -852,9 +945,9 @@ const A = {
   },
   'song-addset': () => chooseSetSheet([S.cur.songId]),
   'song-dup': async () => { const o = curSong(); const n = { ...o, id: uid(), title: o.title + ' copy', modified: now() }; if (o.fmt === 'pdf') { const b = await DB.get('blobs', o.pdfId); n.pdfId = uid(); if (b) await DB.put('blobs', { id: n.pdfId, data: b.data }); } await saveSong(n); closeSheet(); toast('Duplicated'); go('#/song/' + encodeURIComponent(n.id)); },
-  'song-trash': async () => { const s = curSong(); s.deleted = now(); await saveSong(s); toast('Moved to trash'); A['song-back'](); },
+  'song-trash': () => { const s = curSong(); confirmBox('Move to trash?', `"${s.title}" can be restored any time from Settings \u25b8 Trash.`, 'Move to trash', async () => { s.deleted = now(); await saveSong(s); toast('Moved to trash'); A['song-back'](); }, true); },
   'open-key': () => openKeySheet(),
-  'shift': (el) => changeHolder((s, h) => { if (!s.key) { toast('Set the key first'); return; } h.shift = normShift((h.shift || 0) + (+el.dataset.d)); }),
+  'shift': (el) => changeHolder((s, h) => { if (!s.key) { toast('Choose the key first'); openKeySheet(); return; } h.shift = normShift((h.shift || 0) + (+el.dataset.d)); }),
   'capo': (el) => changeHolder((s, h) => { h.capo = Math.max(0, Math.min(11, (h.capo || 0) + (+el.dataset.d))); }),
   'capo-x': () => changeHolder((s, h) => { h.capo = 0; }),
   'reset-key': () => changeHolder((s, h) => { h.shift = 0; h.capo = 0; }),
@@ -885,15 +978,17 @@ const A = {
   },
   'edit-trash': () => { const s = S.edit.song; confirmBox('Move to trash?', 'You can bring it back from Settings ▸ Trash.', 'Move to trash', async () => { s.deleted = now(); await saveSong(s); lsDel(S.edit.draftKey); go('#/songs'); }, true); },
   // settings
-  'theme': async (el) => { S.settings.theme = el.dataset.v; document.documentElement.dataset.theme = el.dataset.v; await saveSettings(); render(); },
+  'preset': async (el) => { const p = PRESETS.find((x) => x.id === el.dataset.v); Object.assign(S.settings, { theme: p.id, bg: p.bg, accent: p.accent, chord: p.chord }); applyTheme(); await saveSettings(); render(); },
+  'style': async (el) => { S.settings.style = el.dataset.v; applyTheme(); await saveSettings(); render(); },
+  'gl': async (el) => { S.settings.glass = clamp(S.settings.glass + (+el.dataset.d), 1, 5); applyTheme(); await saveSettings(); render(); },
   'fs': async (el) => { S.settings.fontSize = Math.max(13, Math.min(34, S.settings.fontSize + (+el.dataset.d))); await saveSettings(); render(); },
   'spd': async (el) => { S.settings.scrollSpeed = Math.max(1, Math.min(5, S.settings.scrollSpeed + (+el.dataset.d))); await saveSettings(); render(); },
-  'sw': async (el) => { const k = el.dataset.k; S.settings[k] = !S.settings[k]; await saveSettings(); render(); },
+  'sw': async (el) => { const k = el.dataset.k; S.settings[k] = !S.settings[k]; applyTheme(); await saveSettings(); render(); },
   'snap-restore': (el) => { const id = el.dataset.id; confirmBox('Restore this copy?', 'Your library will go back to how it was then. Your current library is saved as another safety copy first, so you can undo this.', 'Restore', () => restoreSnapshot(id)); },
   'untrash': async (el) => { const s = songById(el.dataset.id); s.deleted = 0; await saveSong(s); toast('Restored'); render(); },
   'purge': (el) => { const id = el.dataset.id; confirmBox('Delete forever?', 'This song will be removed from your songbook. A safety copy is saved first.', 'Delete', async () => { await takeSnapshot('before delete', true); await DB.del('songs', id); S.songs = S.songs.filter((s) => s.id !== id); S.dirtySnap = true; render(); }, true); },
   'empty-trash': () => confirmBox('Empty trash?', `${trashed().length} songs will be removed. A safety copy is saved first.`, 'Empty trash', async () => { await takeSnapshot('before delete', true); const ids = trashed().map((s) => s.id); await DB.delMany('songs', ids); S.songs = S.songs.filter((s) => !s.deleted); S.dirtySnap = true; render(); }, true),
-  'free-space': () => freeSpace(),
+  'free-space': () => confirmBox('Clean up unused files?', 'This permanently deletes PDF files that no song or safety copy uses any more. Your songs are not touched.', 'Clean up', () => freeSpace(), true),
   'check-update': async () => { try { const r = await navigator.serviceWorker.getRegistration(); if (r) await r.update(); toast('You have the latest version'); } catch (_) { toast('Could not check right now'); } },
   'imp-mode': (el) => { sheetCtx.mode = el.dataset.m; $$('.choice').forEach((c) => c.classList.toggle('on', c === el)); },
   'imp-go': () => {
@@ -917,6 +1012,8 @@ async function fontStep(d) {
 
 document.addEventListener('click', async (e) => {
   const imp = e.target.closest('input[data-import]'); if (imp) return;
+  const chEl = e.target.closest('[data-chord]');
+  if (chEl && !S.ui.select) { openChordSheet(chEl.dataset.chord); return; }
   const el = e.target.closest('[data-act]');
   if (!el) return;
   const fn = A[el.dataset.act]; if (!fn) return;
@@ -927,7 +1024,15 @@ document.addEventListener('click', (e) => {
   const row = e.target.closest('a.row[data-id]');
   if (row && S.ui.select) { e.preventDefault(); const id = row.dataset.id; S.ui.select.has(id) ? S.ui.select.delete(id) : S.ui.select.add(id); renderList(); }
 }, true);
+let colorT;
 document.addEventListener('input', (e) => {
+  const t = e.target;
+  if (t.dataset && t.dataset.color) {
+    S.settings[t.dataset.color] = t.value; S.settings.theme = 'custom'; applyTheme();
+    $$('.swatch.on').forEach((x) => x.classList.remove('on'));
+    clearTimeout(colorT); colorT = setTimeout(saveSettings, 400);
+    return;
+  }
   if (e.target.id === 'q') { S.ui.q = e.target.value; renderList(); }
   if (e.target.id === 'pk-q' && sheetCtx) { sheetCtx.q = e.target.value; paintPick(); }
 });
@@ -961,7 +1066,10 @@ async function boot() {
   try {
     await DB.open();
     S.songs = await DB.all('songs'); S.sets = await DB.all('sets');
-    S.settings = Object.assign({}, DEFAULTS, await DB.getMeta('settings', {}));
+    const saved = await DB.getMeta('settings', {});
+    S.settings = Object.assign({}, DEFAULTS, saved);
+    const pre = PRESETS.find((x) => x.id === S.settings.theme);
+    if (pre && !saved.bg) Object.assign(S.settings, { bg: pre.bg, accent: pre.accent, chord: pre.chord });
     S.meta.lastBackup = await DB.getMeta('lastBackup', 0);
     S.meta.editsSinceBackup = await DB.getMeta('editsSinceBackup', 0);
     S.meta.lastSnap = await DB.getMeta('lastSnap', 0);
@@ -969,7 +1077,7 @@ async function boot() {
     $('#app').innerHTML = `<div class="empty"><h2>Storage is unavailable</h2><p>${esc(e.message || e)}. Open the app from your Home Screen, or allow site data for this page.</p></div>`;
     return;
   }
-  document.documentElement.dataset.theme = S.settings.theme;
+  applyTheme();
   await requestPersist();
   render();
   if (S.songs.length && (!S.meta.lastSnap || now() - S.meta.lastSnap > 6 * 36e5)) { S.dirtySnap = true; takeSnapshot('daily').catch(() => {}); }
