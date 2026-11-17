@@ -2,6 +2,7 @@
 (() => {
 'use strict';
 
+const X = { hooks: {} }; // small API shared with js/pro.js
 // ───────────────────────── helpers ─────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -32,13 +33,15 @@ const IC = {
   chev: '<path d="M9 5l7 7-7 7"/>', ud: '<path d="M6 14l6-6 6 6"/>', dd: '<path d="M6 10l6 6 6-6"/>',
   shield: '<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
   select: '<path d="M4 7l2 2 3-3M4 16l2 2 3-3M13 7h7M13 17h7"/>', copy: '<rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15V6a1 1 0 011-1h9"/>',
+  stage: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>', pen: '<path d="M4 20l1-4L16.5 4.5a2 2 0 013 3L8 19l-4 1z"/>', undo: '<path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/>',
+  eraser: '<path d="M8 20h12M5 15l9-9 5 5-6 6H8z"/>', fitpage: '<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/>', img: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4 4 3 3-2 4 3"/>',
   restore: '<path d="M4 12a8 8 0 108-8M4 4v4h4"/>', file: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
 };
 const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n] || ''}</svg>`;
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '1.1.1', build: '2026-11-17' });
+const APP = Object.freeze({ name: 'Songbook', version: '1.2.0', build: '2026-11-18' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -57,7 +60,8 @@ const PRESETS = [
   { id: 'rose', name: 'Rose', bg: '#17100f', accent: '#ee9aa8', chord: '#f0d0a0' },
   { id: 'slate', name: 'Slate', bg: '#14161a', accent: '#9aa8bd', chord: '#e6c98f' },
 ];
-const DEFAULTS = { theme: 'night', bg: '#0d1016', accent: '#86b4f5', chord: '#e8c48e', style: 'solid', glass: 3, soften: true, fontSize: 19, mode: 'letters', chords: true, invertPdf: true, pdfZoom: 100, scrollSpeed: 3, wake: true };
+const DEFAULTS = { theme: 'night', bg: '#0d1016', accent: '#86b4f5', chord: '#e8c48e', style: 'solid', glass: 3, soften: true, fontSize: 19, mode: 'letters', chords: true, invertPdf: true, pdfZoom: 100, scrollSpeed: 3, wake: true,
+  glassT: 55, glassBlur: 55, bgImage: false, bgDim: 55, bgBlur: 0, hsl: null, pdfFit: 'width' };
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 function hexToHsl(hex) {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return [220, 0.2, 0.08];
@@ -71,22 +75,32 @@ function hslToHex(h, sat, l) {
   const k = (n) => (n + h / 30) % 12, a = sat * Math.min(l, 1 - l); const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
   return '#' + [f(0), f(8), f(4)].map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('');
 }
+const BAND = { bg: { l: [0, 0.14], s: [0, 0.5] }, accent: { l: [0.6, 0.76], s: [0, 0.78] }, chord: { l: [0.64, 0.8], s: [0, 0.72] } };
+function hslOf(k) { const st = S.settings; const v = st.hsl && st.hsl[k]; return v ? v.slice() : hexToHsl(st[k]); }
 function applyTheme() {
-  const st = S.settings, soft = st.soften !== false, glass = st.style === 'glass', lv = clamp(+st.glass || 3, 1, 5);
-  let [bh, bs, bl] = hexToHsl(st.bg), [ah, as, al] = hexToHsl(st.accent), [ch, cs, cl] = hexToHsl(st.chord);
+  const st = S.settings, soft = st.soften !== false, glass = st.style === 'glass';
+  const T = clamp((+st.glassT) / 100, 0, 1), B = clamp((+st.glassBlur) / 100, 0, 1), lv = 1 + 4 * T;
+  let [bh, bs, bl] = hslOf('bg'), [ah, as, al] = hslOf('accent'), [ch, cs, cl] = hslOf('chord');
   if (soft) { bl = Math.min(bl, 0.14); bs = Math.min(bs, 0.5); al = clamp(al, 0.6, 0.76); as = Math.min(as, 0.78); cl = clamp(cl, 0.64, 0.8); cs = Math.min(cs, 0.72); }
+  const img = !!(st.bgImage && S.bgData);
   const V = {
     '--bg': hsl(bh, bs, bl), '--sheet': hsl(bh, bs * 0.9, Math.min(bl + 0.045, 0.2)),
-    '--sheet-glass': hsl(bh, bs * 0.9, Math.min(bl + 0.045, 0.2), (0.9 - lv * 0.07).toFixed(2)),
+    '--sheet-glass': hsl(bh, bs * 0.9, Math.min(bl + 0.045, 0.2), clamp(0.96 - 0.78 * T, 0.12, 0.96).toFixed(2)),
     '--text': hsl(bh, 0.14, 0.86), '--text2': hsl(bh, 0.1, 0.7), '--muted': hsl(bh, 0.08, 0.55), '--title': hsl(bh, 0.16, 0.92),
     '--accent': hsl(ah, as, al), '--accent-bg': hsl(ah, as, al, 0.15), '--chord': hsl(ch, cs, cl), '--head': hsl(ah, 0.38, 0.77),
     '--line': hsl(bh, 0.2, 0.92, glass ? 0.12 : 0.085), '--card': hsl(bh, 0.2, 0.95, glass ? 0.07 : 0.045), '--card2': hsl(bh, 0.2, 0.95, glass ? 0.12 : 0.08),
-    '--glass': hsl(bh, bs, Math.min(bl + 0.05, 0.2), glass ? (0.86 - lv * 0.06).toFixed(2) : 0.82),
+    '--glass': hsl(bh, bs, Math.min(bl + 0.05, 0.2), glass ? clamp(0.9 - 0.8 * T, 0.08, 0.9).toFixed(2) : 0.82),
+    '--fade': hsl(bh, bs, bl, img ? 0.5 : 1), '--dim': hsl(bh, bs, bl, clamp((+st.bgDim) / 100, 0, 0.95).toFixed(2)),
     '--orb1': hsl(ah, as, 0.55, (0.08 + lv * 0.05).toFixed(2)), '--orb2': hsl(ch, cs, 0.55, (0.05 + lv * 0.035).toFixed(2)), '--orb3': hsl((ah + 150) % 360, 0.45, 0.5, (0.06 + lv * 0.04).toFixed(2)),
-    '--glow1': hsl(ah, as, al, 0.1), '--glow2': hsl(ch, cs, cl, 0.045), '--blur': 10 + lv * 6 + 'px', '--on-accent': '#0b1018',
+    '--glow1': hsl(ah, as, al, 0.1), '--glow2': hsl(ch, cs, cl, 0.045), '--blur': (4 + 34 * B).toFixed(0) + 'px', '--on-accent': '#0b1018',
   };
   const r = document.documentElement; Object.keys(V).forEach((k) => r.style.setProperty(k, V[k]));
-  r.dataset.style = glass ? 'glass' : 'solid'; r.dataset.theme = st.theme;
+  r.dataset.style = glass ? 'glass' : 'solid'; r.dataset.theme = st.theme; r.dataset.img = img ? '1' : '';
+  const bi = document.getElementById('bgimg');
+  if (bi) {
+    bi.hidden = !img;
+    if (img) { if (bi.dataset.v !== String(S.bgVer)) { bi.style.backgroundImage = `url("${S.bgData}")`; bi.dataset.v = String(S.bgVer); } bi.style.filter = `blur(${(clamp(+st.bgBlur, 0, 100) * 0.24).toFixed(1)}px)`; }
+  }
   const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = hslToHex(bh, bs, bl);
 }
 const S = {
@@ -94,7 +108,7 @@ const S = {
   ui: { q: '', sort: 'title', filter: 'all', select: null, scroll: {} },
   cur: null, // { songId, setId, idx }
   meta: { lastBackup: 0, editsSinceBackup: 0, lastSnap: 0 },
-  persisted: false, dirtySnap: false, draftNew: null,
+  persisted: false, dirtySnap: false, draftNew: null, bgData: '', bgVer: 0, stage: null,
 };
 const live = () => S.songs.filter((s) => !s.deleted);
 const trashed = () => S.songs.filter((s) => s.deleted);
@@ -363,13 +377,16 @@ async function viewSong(app, r) {
   <header class="songbar glass">
     <button class="ibtn" data-act="song-back" aria-label="Back">${ico('back')}</button>
     <div class="st"><b>${esc(song.title)}</b>${set ? `<small>${esc(set.name)} · ${idx + 1}/${set.items.length}</small>` : ''}</div>
+    <button class="ibtn" data-act="share-song" aria-label="Share">${ico('share')}</button>
     <button class="ibtn" data-act="song-edit" aria-label="Edit">${ico('edit')}</button>
     <button class="ibtn" data-act="song-more" aria-label="More">${ico('more')}</button>
   </header>
   <article class="songpage">
+    <div class="stagehead" id="stagehead"></div>
     <h1 class="stitle">${esc(song.title)}</h1>
     <div class="sby">${esc(song.author || '')}</div>
     <div class="pills" id="pills"></div>
+    <div id="notecard"></div>
     <div id="songbody" class="sbody" style="--fs:${S.settings.fontSize}px"></div>
   </article>
   <div class="dock glass" id="dock"></div>`;
@@ -416,21 +433,27 @@ function paintSong() {
   const k = keyLabel(song, holder), capo = holder.capo || 0, ctx = makeCtx(song, holder);
   const numbersOn = song.fmt === 'text' && ctx.mode === 'numbers';
   const hint = song.fmt === 'text' && !song.key && S.settings.mode === 'letters' && hasNumbers(song) ? '<p class="hint">This song uses Nashville numbers. Tap <b>Key</b> and choose a key to see the letter chords.</p>' : '';
+  const pdf = song.fmt === 'pdf';
   $('#pills').innerHTML =
-    (song.fmt === 'text'
+    (!pdf
       ? `<span class="keygrp"><button class="kb" data-act="shift" data-d="-1" aria-label="Key down">−</button><button class="pill key" data-act="open-key">${ico('keys')}<span>Key <b>${esc(k || '—')}</b></span></button><button class="kb" data-act="shift" data-d="1" aria-label="Key up">+</button></span>`
       : `<button class="pill key" data-act="open-key">${ico('keys')}<span>Key <b>${esc(k || '—')}</b></span></button>`) +
     (capo ? `<span class="pill">Capo ${capo}</span>` : '') +
-    (song.fmt === 'text' ? `<button class="pill ${numbersOn ? 'on' : ''}" data-act="toggle-mode">${numbersOn ? 'Numbers' : 'Letters'}</button>` : '<span class="pill">PDF</span>') + hint;
+    (!pdf ? `<button class="pill ${numbersOn ? 'on' : ''}" data-act="toggle-mode">${numbersOn ? 'Numbers' : 'Letters'}</button>`
+      : `<button class="pill ${S.settings.pdfFit === 'page' ? 'on' : ''}" data-act="pdf-fit">${ico('fitpage')} Fit page</button><button class="pill ${S.ink && S.ink.on ? 'on' : ''}" data-act="pen">${ico('pen')} Pen</button>`) + hint;
+  $('#notecard').innerHTML = song.notes ? `<div class="notecard"><b>Notes</b><p>${esc(song.notes)}</p></div>` : '';
   const set = S.cur.setId && setById(S.cur.setId);
   $('#dock').innerHTML = `
     ${set ? `<button class="dk" data-act="set-prev" aria-label="Previous song">${ico('back')}</button>` : ''}
     <button class="dk" data-act="font-" aria-label="Smaller text"><b>A</b><sup>−</sup></button>
     <button class="dk" data-act="font+" aria-label="Larger text"><b>A</b><sup>+</sup></button>
-    ${song.fmt === 'text' ? `<button class="dk ${S.settings.chords ? 'on' : ''}" data-act="toggle-chords"><span>♯♭</span></button>` : ''}
-    <button class="dk" data-act="open-key">${ico('keys')}</button>
+    ${!pdf ? `<button class="dk ${S.settings.chords ? 'on' : ''}" data-act="toggle-chords" aria-label="Show chords"><span>♯♭</span></button>` : ''}
+    <button class="dk" data-act="stage" aria-label="Stage mode">${ico('stage')}</button>
     <button class="dk ${autoRaf ? 'on' : ''}" data-act="autoscroll" aria-label="Auto scroll">${ico(autoRaf ? 'pause' : 'play')}</button>
     ${set ? `<button class="dk" data-act="set-next" aria-label="Next song">${ico('chev')}</button>` : ''}`;
+  const sh = $('#stagehead');
+  if (sh) sh.innerHTML = `<b>${esc(song.title)}</b><span>${k ? 'Key ' + esc(k) : ''}${capo ? ' · Capo ' + capo : ''}${set ? ' · ' + (S.cur.idx + 1) + '/' + set.items.length : ''}</span>`;
+  if (X.hooks.paintSong) X.hooks.paintSong(song, holder);
 }
 async function paintPdf(song, host) {
   host.classList.add('pdfhost');
@@ -440,21 +463,27 @@ async function paintPdf(song, host) {
     if (!rec) { host.innerHTML = '<p class="muted center pad">The PDF file for this song is missing. Restore a backup that contains it.</p>'; return; }
     const doc = await pdfjsLib.getDocument({ data: new Uint8Array(rec.data.slice(0)) }).promise;
     const zoom = S.settings.pdfZoom / 100;
-    const width = Math.max(260, ((host.clientWidth || window.innerWidth) - 36) * zoom);
+    const stage = !!S.stage, availW = Math.max(260, (host.clientWidth || window.innerWidth) - (stage ? 0 : 36));
+    const availH = Math.max(240, window.innerHeight - (stage ? 8 : 150));
     const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
     const frag = document.createDocumentFragment();
     for (let p = 1; p <= doc.numPages; p++) {
       const page = await doc.getPage(p);
       const base = page.getViewport({ scale: 1 });
+      let width = availW * (stage ? 1 : zoom);
+      if (stage || S.settings.pdfFit === 'page') width = Math.min(availW, availH * base.width / base.height) * (stage ? 1 : zoom);
       const vp = page.getViewport({ scale: (width * dpr) / base.width });
+      const wrap = document.createElement('div'); wrap.className = 'pgwrap'; wrap.dataset.page = String(p - 1);
+      wrap.style.width = width + 'px'; wrap.style.height = (vp.height / dpr) + 'px';
       const c = document.createElement('canvas');
       c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
       c.style.width = width + 'px'; c.style.height = (vp.height / dpr) + 'px';
       c.className = 'pdfpage' + (S.settings.invertPdf ? ' inv' : '');
       await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
-      frag.appendChild(c);
+      wrap.appendChild(c); frag.appendChild(wrap);
     }
     host.innerHTML = ''; host.appendChild(frag);
+    if (X.hooks.afterPdf) X.hooks.afterPdf(song, host);
   } catch (e) { host.innerHTML = `<p class="muted center pad">Could not open this PDF (${esc(e.message || e)}).</p>`; }
 }
 function startScroll() {
@@ -530,7 +559,8 @@ function viewEdit(app, r) {
     <div class="field"><label>Title</label><input id="e-title" value="${esc(song.title)}" placeholder="Song title" autocomplete="off"></div>
     <div class="two"><div class="field"><label>Artist</label><input id="e-author" value="${esc(song.author)}" placeholder="Artist" autocomplete="off"></div>
     <div class="field"><label>Original key</label><select id="e-key">${keyOpts(song.key)}</select></div></div>
-    ${pdf ? '<p class="muted small">This song is a PDF picture. You can change its title, artist and key.</p>' : `
+    <div class="field"><label>Notes</label><textarea id="e-notes" class="notes" rows="3" placeholder="e.g. Start soft, build on the bridge, drums out on verse 2">${esc(song.notes || '')}</textarea></div>
+    ${pdf ? '<p class="muted small">This song is a PDF picture. You can change its title, artist, key and notes. Use the Pen on the song page to write on it.</p>' : `
     <div class="chiprow" id="chips"></div>
     <textarea id="e-body" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" placeholder="Write lyrics here.&#10;Put chords in brackets, like [G]Amazing [C]grace&#10;or on the line above the words, or use Nashville numbers (1 4 5 6m).">${esc(body)}</textarea>
     <div id="e-prev" class="sbody preview" hidden></div>`}
@@ -586,7 +616,7 @@ function viewSetDetail(id) {
   }).join('');
   return `<header class="top"><a class="ibtn" href="#/sets" aria-label="Back">${ico('back')}</a><h1 class="mid">${esc(set.name)}</h1><div class="acts"><button class="ibtn" data-act="set-more" data-id="${esc(set.id)}" aria-label="More">${ico('more')}</button></div></header>
     <p class="muted small pad">${fmtDate(set.date)}</p>
-    <div class="btnrow tight"><button class="btn primary" data-act="set-add" data-id="${esc(set.id)}">${ico('plus')} Add songs</button>${set.items.length ? `<a class="btn" href="#/song/${encodeURIComponent(set.items.find((it) => songById(it.songId) && !songById(it.songId).deleted)?.songId || '')}?set=${encodeURIComponent(set.id)}&i=${Math.max(0, set.items.findIndex((it) => songById(it.songId) && !songById(it.songId).deleted))}">${ico('play')} Start</a>` : ''}</div>
+    <div class="btnrow tight"><button class="btn primary" data-act="set-add" data-id="${esc(set.id)}">${ico('plus')} Add songs</button>${set.items.length ? `<button class="btn" data-act="share-set" data-id="${esc(set.id)}">${ico('share')} Share</button>` : ''}${set.items.length ? `<a class="btn" href="#/song/${encodeURIComponent(set.items.find((it) => songById(it.songId) && !songById(it.songId).deleted)?.songId || '')}?set=${encodeURIComponent(set.id)}&i=${Math.max(0, set.items.findIndex((it) => songById(it.songId) && !songById(it.songId).deleted))}">${ico('play')} Start</a>` : ''}</div>
     <div id="setlist">${rows || '<p class="muted center pad">No songs in this set yet.</p>'}</div>`;
 }
 function newSetSheet(preSelect) {
@@ -639,21 +669,21 @@ function viewSettings() {
   <section class="card"><h3>Trash</h3><a class="row" href="#/trash"><span class="rt"><span class="t">Deleted songs</span><span class="a">${trashed().length} in trash — restore any time</span></span>${ico('chev', 'dim')}</a></section>
   <section class="card"><h3>Appearance</h3>
     <div class="kv"><label>Style</label><div class="seg"><button class="${st.style !== 'glass' ? 'on' : ''}" data-act="style" data-v="solid">Solid</button><button class="${st.style === 'glass' ? 'on' : ''}" data-act="style" data-v="glass">Glass</button></div></div>
-    ${st.style === 'glass' ? `<div class="kv"><label>Glass strength</label><div class="stepper"><button data-act="gl" data-d="-1">−</button><b>${st.glass}</b><button data-act="gl" data-d="1">+</button></div></div>` : ''}
+    ${st.style === 'glass' ? `${rng('Transparency', 'glassT', 0, 100, st.glassT)}${rng('Blur', 'glassBlur', 0, 100, st.glassBlur)}` : '<p class="small muted pad0">Glass makes menus, cards and bars see-through, so your background shows through.</p>'}
     <div class="swatches">${PRESETS.map((p) => `<button class="swatch ${st.theme === p.id ? 'on' : ''}" data-act="preset" data-v="${p.id}" style="--b:${p.bg};--a:${p.accent};--c:${p.chord}"><i></i><span>${p.name}</span></button>`).join('')}</div>
-    <p class="small muted pad0">Or choose any colour you like:</p>
-    <div class="kv"><label>Background</label><input class="clr" type="color" data-color="bg" value="${esc(st.bg)}"></div>
-    <div class="kv"><label>Highlights and buttons</label><input class="clr" type="color" data-color="accent" value="${esc(st.accent)}"></div>
-    <div class="kv"><label>Chords</label><input class="clr" type="color" data-color="chord" value="${esc(st.chord)}"></div>
+    <div class="kv"><label>Background picture</label><div class="btnrow tight inl"><label class="btn sm file">${ico('img')} ${S.bgData && st.bgImage ? 'Change' : 'Choose'}<input type="file" accept="image/*" data-bgfile></label>${S.bgData && st.bgImage ? '<button class="btn sm danger" data-act="bg-clear">Remove</button>' : ''}</div></div>
+    ${S.bgData && st.bgImage ? `${rng('Darken picture', 'bgDim', 0, 95, st.bgDim)}${rng('Blur picture', 'bgBlur', 0, 100, st.bgBlur)}` : ''}
+    <p class="small muted pad0">Make any colour you like. Every slider shows its percentage.</p>
+    ${colorSliders('bg', 'Background')}${colorSliders('accent', 'Highlights and buttons')}${colorSliders('chord', 'Chords')}
     <div class="kv"><label>Soften colours for the eyes</label><button class="sw ${st.soften !== false ? 'on' : ''}" data-act="sw" data-k="soften" aria-label="toggle"></button></div>
-    <p class="small muted pad0">Softening keeps backgrounds dark and highlights gentle, whatever colour you pick.</p>
+    <p class="small muted pad0">Softening keeps backgrounds dark and highlights gentle. Turn it off to use the full colour range.</p>
   </section>
   <section class="card"><h3>Display</h3>
-    <div class="kv"><label>Text size</label><div class="stepper"><button data-act="fs" data-d="-1">−</button><b>${st.fontSize}</b><button data-act="fs" data-d="1">+</button></div></div>
+    ${rng('Text size', 'fontPct', 68, 179, Math.round(st.fontSize / 19 * 100))}
     <div class="kv"><label>Chords as</label><div class="seg"><button class="${st.mode === 'letters' ? 'on' : ''}" data-act="mode" data-m="letters">Letters</button><button class="${st.mode === 'numbers' ? 'on' : ''}" data-act="mode" data-m="numbers">Numbers</button></div></div>
     <div class="kv"><label>Dim PDFs for dark mode</label><button class="sw ${st.invertPdf ? 'on' : ''}" data-act="sw" data-k="invertPdf" aria-label="toggle"></button></div>
     <div class="kv"><label>Keep screen awake</label><button class="sw ${st.wake ? 'on' : ''}" data-act="sw" data-k="wake" aria-label="toggle"></button></div>
-    <div class="kv"><label>Auto-scroll speed</label><div class="stepper"><button data-act="spd" data-d="-1">−</button><b>${st.scrollSpeed}</b><button data-act="spd" data-d="1">+</button></div></div>
+    ${rng('Auto-scroll speed', 'speedPct', 20, 100, st.scrollSpeed * 20, { step: 20 })}
   </section>
   <section class="card"><h3>Storage</h3><div class="btnrow tight"><button class="btn" data-act="free-space">Free up space</button><button class="btn" data-act="check-update">Check for update</button></div><p class="small muted">Works fully offline. Bluetooth page-turner pedals work (Page Up / Page Down).</p></section>
   ${aboutCard()}`;
@@ -729,7 +759,7 @@ async function addTextSong(f) {
   await saveSong(rec);
 }
 function newSong(o) {
-  return Object.assign({ id: uid(), title: '', author: '', key: '', shift: 0, capo: 0, fmt: 'text', body: '', tags: [], deleted: 0, modified: now(), hash: '', raw: {} }, o);
+  return Object.assign({ id: uid(), title: '', author: '', key: '', shift: 0, capo: 0, fmt: 'text', body: '', tags: [], deleted: 0, modified: now(), hash: '', raw: {}, notes: '', ink: null }, o);
 }
 async function pdfKey(buf) {
   try {
@@ -739,7 +769,7 @@ async function pdfKey(buf) {
   } catch (_) { return ''; }
 }
 
-const EXTRA_DROP = new Set(['content', 'name', 'author', 'Capo', 'KeyShift', 'Deleted', 'key', 'Id', 'ModifiedDateTime', '_tags', 'hash', 'DeepSearch', 'type']);
+const EXTRA_DROP = new Set(['NotesText', 'SbInk', 'content', 'name', 'author', 'Capo', 'KeyShift', 'Deleted', 'key', 'Id', 'ModifiedDateTime', '_tags', 'hash', 'DeepSearch', 'type']);
 async function readSbp(file) {
   const zip = await JSZip.loadAsync(file);
   const df = zip.file('dataFile.txt');
@@ -754,7 +784,7 @@ async function sbpSong(s, zip) {
   const rec = newSong({
     title: s.name || 'Untitled', author: s.author || '', shift: s.KeyShift || 0, capo: s.Capo || 0,
     fmt: isPdf ? 'pdf' : 'text', tags: safeJson(s._tags, []), deleted: s.Deleted ? now() : 0,
-    modified: Date.parse(s.ModifiedDateTime) || now(), origId: s.Id,
+    modified: Date.parse(s.ModifiedDateTime) || now(), origId: s.Id, notes: typeof s.NotesText === 'string' ? s.NotesText : '', ink: s.SbInk ? safeJson(s.SbInk, null) : null,
   });
   rec.raw = {}; Object.keys(s).forEach((k) => { if (!EXTRA_DROP.has(k)) rec.raw[k] = s[k]; });
   if (isPdf) {
@@ -836,11 +866,12 @@ async function buildSbp() {
       Id: idOf.get(s.id), author: s.author || '', Capo: s.capo || 0, content, hash: s.hash || '', key: Music.sbpIndexFromKey(s.key),
       KeyShift: s.shift || 0, name: s.title, subTitle: '', type: isPdf ? 2 : 1, ModifiedDateTime: new Date(s.modified).toISOString(), Deleted: !!s.deleted,
       SyncId: '', timeSig: '', ZoomFactor: 1.0, Duration: 0, Duration2: 0, _displayParams: '{}', TempoInt: 0, _tags: JSON.stringify(s.tags || []), Url: '',
-      DeepSearch: `${norm(s.title)}\n${norm(s.author)}\n`, Copyright: '', NotesText: '', Zoom: 1.0, SectionOrder: '', SongNumber: 0, HasChildren: 0, ParentId: 0,
+      DeepSearch: `${norm(s.title)}\n${norm(s.author)}\n`, Copyright: '', NotesText: s.notes || '', Zoom: 1.0, SectionOrder: '', SongNumber: 0, HasChildren: 0, ParentId: 0,
       vName: null, locked: 0, LinkedAudio: null, Chords: null, midiOnLoad: null, importSource: null, _folders: '[]', drawingPathsBackup: null,
     }, s.raw || {}, {
       Id: idOf.get(s.id), author: s.author || '', Capo: s.capo || 0, content, hash: s.hash || '', key: Music.sbpIndexFromKey(s.key), KeyShift: s.shift || 0,
       name: s.title, type: isPdf ? 2 : 1, Deleted: !!s.deleted, ModifiedDateTime: new Date(s.modified).toISOString(), _tags: JSON.stringify(s.tags || []),
+      NotesText: s.notes || '', ...(s.ink && Object.keys(s.ink).length ? { SbInk: JSON.stringify(s.ink) } : {}),
     }));
   }
   const sets = S.sets.map((st, si) => ({
@@ -892,6 +923,67 @@ async function freeSpace() {
   toast(orphan.length ? `Freed ${orphan.length} unused file${orphan.length === 1 ? '' : 's'}` : 'Nothing to clean up');
 }
 
+// ───────────────────────── sliders (always show a percentage) ─────────────────────────
+const RAINBOW = 'linear-gradient(90deg,hsl(0 75% 58%),hsl(60 75% 58%),hsl(120 75% 52%),hsl(180 75% 52%),hsl(240 75% 64%),hsl(300 75% 62%),hsl(360 75% 58%))';
+function rng(label, key, min, max, val, o = {}) {
+  const p = ((val - min) / ((max - min) || 1)) * 100;
+  return `<div class="rngrow"><div class="rl"><label>${esc(label)}</label><output data-out="${key}">${val}%</output></div><input class="rng" type="range" min="${min}" max="${max}" step="${o.step || 1}" value="${val}" data-rng="${key}" aria-label="${esc(label)}" style="--p:${p}%;${o.trk ? '--trk:' + o.trk : ''}"></div>`;
+}
+const pct = (x) => Math.round(x * 100);
+function colorTracks(k, h, sat, l) {
+  const soft = S.settings.soften !== false, band = BAND[k], ls = soft ? band.l : [0, 1], ss = soft ? band.s : [0, 1];
+  return {
+    h: RAINBOW,
+    s: `linear-gradient(90deg,${hsl(h, ss[0], l)},${hsl(h, ss[1], l)})`,
+    l: `linear-gradient(90deg,${hsl(h, sat, ls[0])},${hsl(h, sat, ls[1])})`,
+    ls, ss,
+  };
+}
+function colorSliders(k, label) {
+  let [h, sat, l] = hslOf(k); const t = colorTracks(k, h, sat, l);
+  sat = clamp(sat, t.ss[0], t.ss[1]); l = clamp(l, t.ls[0], t.ls[1]);
+  return `<div class="cgrp" data-cgrp="${k}"><div class="cname"><i class="dot" style="background:${hslToHex(h, sat, l)}"></i><b>${esc(label)}</b><input class="clr" type="color" data-color="${k}" value="${hslToHex(h, sat, l)}" aria-label="${esc(label)} colour"></div>
+    ${rng('Colour', k + '.h', 0, 100, pct(h / 360), { trk: t.h })}
+    ${rng('Strength', k + '.s', pct(t.ss[0]), pct(t.ss[1]), pct(sat), { trk: t.s })}
+    ${rng('Brightness', k + '.l', pct(t.ls[0]), pct(t.ls[1]), pct(l), { trk: t.l })}</div>`;
+}
+function onSlider(t) {
+  const key = t.dataset.rng, v = +t.value, st = S.settings;
+  const m = /^(bg|accent|chord)\.([hsl])$/.exec(key);
+  if (m) {
+    const c = m[1], cur = hslOf(c), i = 'hsl'.indexOf(m[2]);
+    cur[i] = i === 0 ? (v / 100) * 360 : v / 100;
+    st.hsl = Object.assign({}, st.hsl || {}, { [c]: cur }); st[c] = hslToHex(cur[0], cur[1], cur[2]); st.theme = 'custom';
+    $$('.swatch.on').forEach((x) => x.classList.remove('on'));
+    const g = t.closest('.cgrp'); if (g) {
+      const tr = colorTracks(c, cur[0], cur[1], cur[2]);
+      $$('input[data-rng]', g).forEach((inp) => { const w = inp.dataset.rng.split('.')[1]; if (w !== 'h') inp.style.setProperty('--trk', tr[w]); });
+      const hex = hslToHex(cur[0], clamp(cur[1], tr.ss[0], tr.ss[1]), clamp(cur[2], tr.ls[0], tr.ls[1]));
+      const dot = $('.dot', g); if (dot) dot.style.background = hex; const ci = $('input[type=color]', g); if (ci) ci.value = hex;
+    }
+  } else if (key === 'fontPct') st.fontSize = clamp(Math.round((19 * v) / 100), 13, 34);
+  else if (key === 'speedPct') st.scrollSpeed = clamp(Math.round(v / 20), 1, 5);
+  else st[key] = v;
+  t.style.setProperty('--p', ((v - +t.min) / ((+t.max - +t.min) || 1)) * 100 + '%');
+  const out = $(`output[data-out="${key}"]`); if (out) out.textContent = v + '%';
+  applyTheme(); clearTimeout(colorT); colorT = setTimeout(saveSettings, 400);
+}
+async function setBgImage(file) {
+  if (!file) return;
+  try {
+    let bmp;
+    try { bmp = await createImageBitmap(file); } catch (_) {
+      bmp = await new Promise((res, rej) => { const u = URL.createObjectURL(file), im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = u; });
+    }
+    const w0 = bmp.width || bmp.naturalWidth, h0 = bmp.height || bmp.naturalHeight, sc = Math.min(1, 1800 / Math.max(w0, h0));
+    const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w0 * sc)); c.height = Math.max(1, Math.round(h0 * sc));
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    const url = c.toDataURL('image/jpeg', 0.82);
+    S.bgData = url; S.bgVer++; S.settings.bgImage = true;
+    await DB.setMeta('bgimage', url); await saveSettings(); applyTheme(); render(); toast('Background picture set');
+  } catch (e) { toast('Could not use that picture'); }
+}
+
 // ───────────────────────── actions ─────────────────────────
 const A = {
   'close-sheet': () => closeSheet(),
@@ -924,7 +1016,7 @@ const A = {
     confirmBox('Remove from this set?', `"${sg ? sg.title : 'This song'}" will be removed from the set. The song stays in your songbook.`, 'Remove', async () => { set.items.splice(i, 1); await saveSet(set); render(); }, true);
   },
   'set-more': (el) => {
-    sheet(`<div class="sh-h">Set</div><button class="row" data-act="set-rename" data-id="${esc(el.dataset.id)}"><span class="rt"><span class="t">Rename</span></span></button>
+    sheet(`<div class="sh-h">Set</div><button class="row" data-act="share-set" data-id="${esc(el.dataset.id)}"><span class="rt"><span class="t">Share to the band…</span></span></button><button class="row" data-act="set-rename" data-id="${esc(el.dataset.id)}"><span class="rt"><span class="t">Rename</span></span></button>
       <button class="row" data-act="set-dup" data-id="${esc(el.dataset.id)}"><span class="rt"><span class="t">Duplicate</span></span></button>
       <button class="row danger" data-act="set-del" data-id="${esc(el.dataset.id)}"><span class="rt"><span class="t">Delete set</span></span></button>`);
   },
@@ -938,13 +1030,15 @@ const A = {
   'song-more': () => {
     const s = curSong();
     sheet(`<div class="sh-h">${esc(s.title)}</div>
+      <button class="row" data-act="share-song"><span class="rt"><span class="t">Share to the band…</span></span></button>
+      <button class="row" data-act="stage"><span class="rt"><span class="t">Stage mode</span></span></button>
       <button class="row" data-act="song-addset"><span class="rt"><span class="t">Add to a set…</span></span></button>
       <button class="row" data-act="song-dup"><span class="rt"><span class="t">Duplicate</span></span></button>
       <button class="row" data-act="song-edit"><span class="rt"><span class="t">Edit</span></span></button>
       <button class="row danger" data-act="song-trash"><span class="rt"><span class="t">Move to trash</span></span></button>`);
   },
   'song-addset': () => chooseSetSheet([S.cur.songId]),
-  'song-dup': async () => { const o = curSong(); const n = { ...o, id: uid(), title: o.title + ' copy', modified: now() }; if (o.fmt === 'pdf') { const b = await DB.get('blobs', o.pdfId); n.pdfId = uid(); if (b) await DB.put('blobs', { id: n.pdfId, data: b.data }); } await saveSong(n); closeSheet(); toast('Duplicated'); go('#/song/' + encodeURIComponent(n.id)); },
+  'song-dup': async () => { const o = curSong(); const n = { ...o, id: uid(), title: o.title + ' copy', modified: now(), ink: o.ink ? JSON.parse(JSON.stringify(o.ink)) : null }; if (o.fmt === 'pdf') { const b = await DB.get('blobs', o.pdfId); n.pdfId = uid(); if (b) await DB.put('blobs', { id: n.pdfId, data: b.data }); } await saveSong(n); closeSheet(); toast('Duplicated'); go('#/song/' + encodeURIComponent(n.id)); },
   'song-trash': () => { const s = curSong(); confirmBox('Move to trash?', `"${s.title}" can be restored any time from Settings \u25b8 Trash.`, 'Move to trash', async () => { s.deleted = now(); await saveSong(s); toast('Moved to trash'); A['song-back'](); }, true); },
   'open-key': () => openKeySheet(),
   'shift': (el) => changeHolder((s, h) => {
@@ -974,14 +1068,17 @@ const A = {
     if (!title) { toast('Give the song a title'); return; }
     s.title = title; s.author = $('#e-author').value.trim();
     const newKey = $('#e-key').value; if (newKey !== s.key) { s.key = newKey; if (!newKey) s.shift = 0; }
+    s.notes = $('#e-notes').value.trim();
     if (s.fmt === 'text') { s.body = $('#e-body').value; s.hash = MD5.text(s.body); }
     await saveSong(s); lsDel(c.draftKey); S.draftNew = null;
     toast('Saved'); go('#/song/' + encodeURIComponent(s.id), true);
   },
   'edit-trash': () => { const s = S.edit.song; confirmBox('Move to trash?', 'You can bring it back from Settings ▸ Trash.', 'Move to trash', async () => { s.deleted = now(); await saveSong(s); lsDel(S.edit.draftKey); go('#/songs'); }, true); },
   // settings
-  'preset': async (el) => { const p = PRESETS.find((x) => x.id === el.dataset.v); Object.assign(S.settings, { theme: p.id, bg: p.bg, accent: p.accent, chord: p.chord }); applyTheme(); await saveSettings(); render(); },
+  'preset': async (el) => { const p = PRESETS.find((x) => x.id === el.dataset.v); Object.assign(S.settings, { theme: p.id, bg: p.bg, accent: p.accent, chord: p.chord, hsl: null }); applyTheme(); await saveSettings(); render(); },
   'style': async (el) => { S.settings.style = el.dataset.v; applyTheme(); await saveSettings(); render(); },
+  'bg-clear': () => confirmBox('Remove background picture?', 'The picture is removed from this device. Your songs and sets are not touched.', 'Remove', async () => { S.settings.bgImage = false; S.bgData = ''; S.bgVer++; await DB.setMeta('bgimage', ''); await saveSettings(); applyTheme(); render(); toast('Picture removed'); }, true),
+  'pdf-fit': async () => { S.settings.pdfFit = S.settings.pdfFit === 'page' ? 'width' : 'page'; await saveSettings(); paintSong(); },
   'gl': async (el) => { S.settings.glass = clamp(S.settings.glass + (+el.dataset.d), 1, 5); applyTheme(); await saveSettings(); render(); },
   'fs': async (el) => { S.settings.fontSize = Math.max(13, Math.min(34, S.settings.fontSize + (+el.dataset.d))); await saveSettings(); render(); },
   'spd': async (el) => { S.settings.scrollSpeed = Math.max(1, Math.min(5, S.settings.scrollSpeed + (+el.dataset.d))); await saveSettings(); render(); },
@@ -1006,6 +1103,7 @@ async function moveItem(i, d) {
   await saveSet(set); render();
 }
 async function fontStep(d) {
+  if (X.hooks.stageFont && X.hooks.stageFont(d)) return;
   const c = S.cur && songById(S.cur.songId);
   if (c && c.fmt === 'pdf') { S.settings.pdfZoom = Math.max(60, Math.min(260, S.settings.pdfZoom + d * 15)); await saveSettings(); paintSong(); return; }
   S.settings.fontSize = Math.max(13, Math.min(34, S.settings.fontSize + d)); await saveSettings();
@@ -1015,11 +1113,12 @@ async function fontStep(d) {
 document.addEventListener('click', async (e) => {
   const imp = e.target.closest('input[data-import]'); if (imp) return;
   const chEl = e.target.closest('[data-chord]');
-  if (chEl && !S.ui.select) { openChordSheet(chEl.dataset.chord); return; }
+  if (chEl && !S.ui.select && !S.stage) { openChordSheet(chEl.dataset.chord); return; }
   const el = e.target.closest('[data-act]');
   if (!el) return;
   const fn = A[el.dataset.act]; if (!fn) return;
   if (el.tagName === 'A') e.preventDefault();
+  if (navigator.vibrate && /^(shift|capo|font[+-]|stage)$/.test(el.dataset.act)) { try { navigator.vibrate(8); } catch (_) {} }
   try { await fn(el, e); } catch (err) { console.error(err); toast('Something went wrong: ' + (err.message || err), 5000); }
 });
 document.addEventListener('click', (e) => {
@@ -1029,8 +1128,9 @@ document.addEventListener('click', (e) => {
 let colorT;
 document.addEventListener('input', (e) => {
   const t = e.target;
+  if (t.dataset && t.dataset.rng) { onSlider(t); return; }
   if (t.dataset && t.dataset.color) {
-    S.settings[t.dataset.color] = t.value; S.settings.theme = 'custom'; applyTheme();
+    S.settings[t.dataset.color] = t.value; S.settings.hsl = Object.assign({}, S.settings.hsl || {}, { [t.dataset.color]: hexToHsl(t.value) }); S.settings.theme = 'custom'; applyTheme();
     $$('.swatch.on').forEach((x) => x.classList.remove('on'));
     clearTimeout(colorT); colorT = setTimeout(saveSettings, 400);
     return;
@@ -1041,6 +1141,7 @@ document.addEventListener('input', (e) => {
 document.addEventListener('change', async (e) => {
   const t = e.target;
   if (t.id === 'sort') { S.ui.sort = t.value; renderList(); }
+  if (t.dataset && t.dataset.bgfile !== undefined) { const f = t.files && t.files[0]; t.value = ''; await setBgImage(f); }
   if (t.dataset && t.dataset.import !== undefined) { const files = t.files; await importFiles(files); t.value = ''; }
   if (t.dataset && t.dataset.chg === 'set-key') {
     const target = Music.parseKey(t.value);
@@ -1070,6 +1171,8 @@ async function boot() {
     S.songs = await DB.all('songs'); S.sets = await DB.all('sets');
     const saved = await DB.getMeta('settings', {});
     S.settings = Object.assign({}, DEFAULTS, saved);
+    if (saved.glassT == null && saved.glass) { S.settings.glassT = clamp(saved.glass * 18, 0, 100); S.settings.glassBlur = clamp(saved.glass * 18, 0, 100); }
+    S.bgData = await DB.getMeta('bgimage', ''); if (!S.bgData) S.settings.bgImage = false; S.bgVer = 1;
     const pre = PRESETS.find((x) => x.id === S.settings.theme);
     if (pre && !saved.bg) Object.assign(S.settings, { bg: pre.bg, accent: pre.accent, chord: pre.chord });
     S.meta.lastBackup = await DB.getMeta('lastBackup', 0);
@@ -1093,6 +1196,8 @@ async function boot() {
   }
 }
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
+Object.assign(X, { rng, S, A, $, $$, esc, ico, IC, sheet, closeSheet, toast, confirmBox, songById, setById, live, fmtDate, now, uid, go, route, DB, download, makeCtx, keyLabel, holderOf, curSong, curHolder, paintSong, saveSong, saveSettings, applyTheme, acquireWake, releaseWake, stopScroll, startScroll, setStep, APP, copyrightLine, get sheetCtx() { return sheetCtx; }, set sheetCtx(v) { sheetCtx = v; } });
+window.SBX = X;
 window.SB = { S, A, render, saveSong }; // handy for debugging/tests
 boot();
 })();
