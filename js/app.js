@@ -30,7 +30,7 @@ const IC = {
   play: '<path d="M8 5l11 7-11 7z" fill="currentColor"/>', pause: '<path d="M8 5v14M16 5v14"/>',
   music: '<path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="16" r="2"/>',
   sets: '<path d="M4 6h16M4 12h16M4 18h10"/>', gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>',
-  chev: '<path d="M9 5l7 7-7 7"/>', ud: '<path d="M6 14l6-6 6 6"/>', dd: '<path d="M6 10l6 6 6-6"/>',
+  chev: '<path d="M9 5l7 7-7 7"/>', ud: '<path d="M6 14l6-6 6 6"/>', grip: '<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="3"/>', dd: '<path d="M6 10l6 6 6-6"/>',
   shield: '<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
   select: '<path d="M4 7l2 2 3-3M4 16l2 2 3-3M13 7h7M13 17h7"/>', copy: '<rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15V6a1 1 0 011-1h9"/>',
   stage: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>', pen: '<path d="M4 20l1-4L16.5 4.5a2 2 0 013 3L8 19l-4 1z"/>', undo: '<path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/>',
@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '1.3.3', build: '2026-11-18' });
+const APP = Object.freeze({ name: 'Songbook', version: '1.4.0', build: '2026-11-18' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -389,6 +389,7 @@ async function viewSong(app, r) {
     <div id="notecard"></div>
     <div id="songbody" class="sbody" style="--fs:${S.settings.fontSize}px"></div>
   </article>
+  <div class="setnav glass" id="setnav"></div>
   <div class="dock glass" id="dock"></div>`;
   paintSong();
   // swipe between songs of a set
@@ -416,6 +417,37 @@ async function viewSong(app, r) {
 }
 function curSong() { return S.cur && songById(S.cur.songId); }
 function curHolder() { const s = curSong(); return s ? holderOf(s, S.cur.setId, S.cur.idx) : null; }
+function setNeighbour(set, from, d) {
+  let i = from + d;
+  while (i >= 0 && i < set.items.length && (!songById(set.items[i].songId) || songById(set.items[i].songId).deleted)) i += d;
+  return i >= 0 && i < set.items.length ? i : -1;
+}
+function paintSetNav(set) {
+  const nav = $('#setnav'); if (!nav) return;
+  document.body.classList.toggle('hasnav', !!set);
+  if (!set) { nav.innerHTML = ''; nav.style.display = 'none'; return; }
+  nav.style.display = '';
+  const pi = setNeighbour(set, S.cur.idx, -1), ni = setNeighbour(set, S.cur.idx, 1);
+  const t = (i) => esc(songById(set.items[i].songId).title);
+  nav.innerHTML = `<button class="sn" data-act="set-prev" ${pi < 0 ? 'disabled' : ''} aria-label="Previous song">${ico('back')}<span><small>Previous</small>${pi < 0 ? 'Start of set' : t(pi)}</span></button>
+    <button class="sn mid" data-act="set-jump" aria-label="Songs in this set"><b>${S.cur.idx + 1}/${set.items.length}</b><small>Set ▾</small></button>
+    <button class="sn r" data-act="set-next" ${ni < 0 ? 'disabled' : ''} aria-label="Next song"><span><small>Next</small>${ni < 0 ? 'End of set' : t(ni)}</span>${ico('chev')}</button>`;
+}
+function setJumpSheet() {
+  const set = S.cur && setById(S.cur.setId); if (!set) return;
+  const rows = set.items.map((it, i) => { const sg = songById(it.songId); if (!sg || sg.deleted) return '';
+    return `<div class="row jrow ${i === S.cur.idx ? 'cur' : ''}"><button class="rt jgo" data-act="set-goto" data-i="${i}"><span class="t"><em>${i + 1}.</em> ${esc(sg.title)}</span></button><span class="mv"><button class="ibtn sm" data-act="jump-up" data-i="${i}" aria-label="Move up">${ico('ud')}</button><button class="ibtn sm" data-act="jump-down" data-i="${i}" aria-label="Move down">${ico('dd')}</button></span></div>`; }).join('');
+  sheet(`<div class="sh-h">${esc(set.name)}</div><p class="muted small">Tap a song to open it. Use the arrows to change the order.</p><div class="pklist">${rows}</div><div class="btnrow"><button class="btn primary" data-act="close-sheet">Done</button></div>`);
+}
+async function jumpMove(i, d) {
+  const set = setById(S.cur.setId), j = i + d; if (!set || j < 0 || j >= set.items.length) return;
+  const cur = set.items[S.cur.idx];
+  [set.items[i], set.items[j]] = [set.items[j], set.items[i]];
+  S.cur.idx = set.items.indexOf(cur);
+  await saveSet(set);
+  try { history.replaceState(null, '', `#/song/${encodeURIComponent(S.cur.songId)}?set=${encodeURIComponent(set.id)}&i=${S.cur.idx}`); } catch (_) {}
+  setJumpSheet(); paintSetNav(set);
+}
 function setStep(d) {
   const c = S.cur; if (!c || !c.setId) return;
   const set = setById(c.setId); if (!set) return;
@@ -444,18 +476,17 @@ function paintSong() {
   $('#notecard').innerHTML = song.notes ? `<div class="notecard"><b>Notes</b><p>${esc(song.notes)}</p></div>` : '';
   const set = S.cur.setId && setById(S.cur.setId);
   $('#dock').innerHTML = `
-    ${set ? `<button class="dk" data-act="set-prev" aria-label="Previous song">${ico('back')}</button>` : ''}
     <button class="dk" data-act="font-" aria-label="Smaller text"><b>A</b><sup>−</sup></button>
     <button class="dk" data-act="font+" aria-label="Larger text"><b>A</b><sup>+</sup></button>
     ${!pdf ? `<button class="dk ${S.settings.chords ? 'on' : ''}" data-act="toggle-chords" aria-label="Show chords"><span>♯♭</span></button>` : ''}
     <button class="dk" data-act="stage" aria-label="Stage mode">${ico('stage')}</button>
-    <button class="dk ${autoRaf ? 'on' : ''}" data-act="autoscroll" aria-label="Auto scroll">${ico(autoRaf ? 'pause' : 'play')}</button>
-    ${set ? `<button class="dk" data-act="set-next" aria-label="Next song">${ico('chev')}</button>` : ''}`;
+    <button class="dk ${autoRaf ? 'on' : ''}" data-act="autoscroll" aria-label="Auto scroll">${ico(autoRaf ? 'pause' : 'play')}</button>`;
+  paintSetNav(set);
   const sh = $('#stagehead');
   if (sh) sh.innerHTML = `<b>${esc(song.title)}</b><span>${k ? 'Key ' + esc(k) : ''}${capo ? ' · Capo ' + capo : ''}${set ? ' · ' + (S.cur.idx + 1) + '/' + set.items.length : ''}</span>`;
   if (X.hooks.paintSong) X.hooks.paintSong(song, holder);
 }
-let pdfTok = 0;
+let pdfTok = 0, pdfCapped = false, pdfGrow = false;
 // find where the printed content sits (ink scan, used for scanned pages) on a page (fractions 0..1), so white margins can be trimmed away
 // text-based box + typical text size of a PDF page; falls back to the ink scan for scans/images
 async function pageInfo(page, base) {
@@ -525,22 +556,28 @@ async function paintPdf(song, host) {
     const availH = Math.max(240, window.innerHeight - (stage ? 8 : 150));
     const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
     const frag = document.createDocumentFragment();
+    // one shared crop and scale for every page, so all pages line up and the text is the same size throughout
+    const trim = S.settings.pdfTrim !== false, pages = [];
     for (let p = 1; p <= doc.numPages; p++) {
-      const page = await doc.getPage(p);
-      const base = page.getViewport({ scale: 1 });
-      const inf = S.settings.pdfTrim !== false ? await pageInfo(page, base) : { box: { x0: 0, y0: 0, x1: 1, y1: 1 }, fs: 0, wpt: 0 };
-      const bb = inf.box;
-      const fw = bb.x1 - bb.x0, fh = bb.y1 - bb.y0;
-      // same text size as the text songs: scale so the page's own text height equals the song font size (never wider than the screen at 100%)
-      const wantW = inf.fs ? inf.wpt * (S.settings.fontSize / inf.fs) : Infinity;
-      const target = fitPage ? Math.min(availW, availH * (base.width * fw) / (base.height * fh)) : (stage ? availW * zoom : Math.min(availW * S.settings.fontSize / 19, wantW));
+      const page = await doc.getPage(p), base = page.getViewport({ scale: 1 });
+      pages.push({ page, base, inf: trim ? await pageInfo(page, base) : { box: { x0: 0, y0: 0, x1: 1, y1: 1 }, fs: 0 } });
+    }
+    if (my !== pdfTok) return;
+    const cx0 = Math.min(...pages.map((q) => q.inf.box.x0)), cx1 = Math.max(...pages.map((q) => q.inf.box.x1)), fw = cx1 - cx0;
+    const fss = pages.map((q) => q.inf.fs).filter(Boolean).sort((a, b) => a - b), fs = fss.length ? fss[Math.floor(fss.length / 2)] : 0;
+    const wantW = fs ? fw * pages[0].base.width * (S.settings.fontSize / fs) : Infinity;
+    pdfCapped = !stage && !fitPage && wantW > availW + 1;
+    for (let p = 0; p < pages.length; p++) {
+      const { page, base, inf } = pages[p];
+      const bb = { x0: cx0, x1: cx1, y0: inf.box.y0, y1: inf.box.y1 }, fh = bb.y1 - bb.y0;
+      const target = fitPage ? Math.min(availW, availH * (base.width * fw) / (base.height * fh)) : (stage ? availW * zoom : Math.min(availW, wantW));
       const width = target / fw;
       const dp = Math.min(dpr, 3000 / width);
       const vp = page.getViewport({ scale: (width * dp) / base.width });
       const hpx = vp.height / dp;
       const crop = document.createElement('div'); crop.className = 'pgcrop';
       crop.style.width = (width * fw) + 'px'; crop.style.height = (hpx * fh) + 'px';
-      const wrap = document.createElement('div'); wrap.className = 'pgwrap'; wrap.dataset.page = String(p - 1);
+      const wrap = document.createElement('div'); wrap.className = 'pgwrap'; wrap.dataset.page = String(p);
       wrap.style.width = width + 'px'; wrap.style.height = hpx + 'px';
       wrap.style.margin = `${-hpx * bb.y0}px 0 0 ${-width * bb.x0}px`;
       const c = document.createElement('canvas');
@@ -550,9 +587,10 @@ async function paintPdf(song, host) {
       await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
       if (X.hooks.pdfPage) await X.hooks.pdfPage(song, page, vp, c);
       if (my !== pdfTok) return;
-      crop.appendChild(wrap); wrap.appendChild(c); frag.appendChild(crop); continue;
+      crop.appendChild(wrap); wrap.appendChild(c); frag.appendChild(crop);
     }
     host.innerHTML = ''; host.appendChild(frag);
+    if (pdfGrow && pdfCapped) toast('Largest size that fits this screen'); pdfGrow = false;
     if (X.hooks.afterPdf) X.hooks.afterPdf(song, host);
   } catch (e) { host.innerHTML = `<p class="muted center pad">Could not open this PDF (${esc(e.message || e)}).</p>`; }
 }
@@ -681,7 +719,7 @@ function viewSetDetail(id) {
   const rows = set.items.map((it, i) => {
     const s = songById(it.songId); if (!s || s.deleted) return '';
     const k = keyLabel(s, it);
-    return `<div class="row srow"><a class="rt" href="#/song/${encodeURIComponent(s.id)}?set=${encodeURIComponent(set.id)}&i=${i}"><span class="t"><em>${i + 1}.</em> ${esc(s.title)}</span><span class="a">${esc(s.author || '')}</span></a>
+    return `<div class="row srow" data-i="${i}"><button class="grip" aria-label="Drag to reorder" title="Drag to reorder">${ico('grip')}</button><a class="rt" href="#/song/${encodeURIComponent(s.id)}?set=${encodeURIComponent(set.id)}&i=${i}"><span class="t"><em>${i + 1}.</em> ${esc(s.title)}</span><span class="a">${esc(s.author || '')}</span></a>
       <span class="badges">${k ? `<i class="bd key">${esc(k)}</i>` : ''}</span>
       <span class="mv"><button class="ibtn sm" data-act="item-up" data-i="${i}" aria-label="Move up">${ico('ud')}</button><button class="ibtn sm" data-act="item-down" data-i="${i}" aria-label="Move down">${ico('dd')}</button><button class="ibtn sm" data-act="item-del" data-i="${i}" aria-label="Remove">${ico('close')}</button></span></div>`;
   }).join('');
@@ -1125,7 +1163,9 @@ const A = {
   'toggle-chords': async () => { S.settings.chords = !S.settings.chords; await saveSettings(); paintSong(); },
   'font+': async () => fontStep(1), 'font-': async () => fontStep(-1),
   'autoscroll': () => { if (autoRaf) stopScroll(); else startScroll(); syncScrollBtn(); },
-  'set-prev': () => setStep(-1), 'set-next': () => setStep(1),
+  'set-prev': () => setStep(-1), 'set-next': () => setStep(1), 'set-jump': () => setJumpSheet(),
+  'set-goto': (el) => { const set = setById(S.cur.setId), i = el.dataset.i | 0; closeSheet(); go(`#/song/${encodeURIComponent(set.items[i].songId)}?set=${encodeURIComponent(set.id)}&i=${i}`, true); },
+  'jump-up': (el) => jumpMove(el.dataset.i | 0, -1), 'jump-down': (el) => jumpMove(el.dataset.i | 0, 1),
   // editor
   'edit-back': () => { const c = S.edit; if (c && !c.isNew) go('#/song/' + encodeURIComponent(c.song.id)); else go('#/songs'); },
   'edit-preview': () => {
@@ -1180,7 +1220,7 @@ async function moveItem(i, d) {
 async function fontStep(d) {
   if (X.hooks.stageFont && X.hooks.stageFont(d)) return;
   const c = S.cur && songById(S.cur.songId);
-  if (c && c.fmt === 'pdf') { S.settings.pdfFit = 'width'; S.settings.fontSize = Math.max(13, Math.min(34, S.settings.fontSize + d)); await saveSettings(); paintSong(); return; }
+  if (c && c.fmt === 'pdf') { S.settings.pdfFit = 'width'; pdfGrow = d > 0; S.settings.fontSize = Math.max(13, Math.min(34, S.settings.fontSize + d)); await saveSettings(); paintSong(); return; }
   S.settings.fontSize = Math.max(13, Math.min(34, S.settings.fontSize + d)); await saveSettings();
   $('#songbody').style.setProperty('--fs', S.settings.fontSize + 'px');
 }
@@ -1272,6 +1312,30 @@ async function boot() {
 }
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 Object.assign(X, { newSong, rng, S, A, $, $$, esc, ico, IC, sheet, closeSheet, toast, confirmBox, songById, setById, live, fmtDate, now, uid, go, route, DB, download, makeCtx, keyLabel, holderOf, curSong, curHolder, paintSong, saveSong, saveSettings, applyTheme, acquireWake, releaseWake, stopScroll, startScroll, setStep, APP, copyrightLine, get sheetCtx() { return sheetCtx; }, set sheetCtx(v) { sheetCtx = v; } });
+
+// drag a song by its handle to reorder a set
+document.addEventListener('pointerdown', (e) => {
+  const g = e.target.closest && e.target.closest('.grip'); if (!g) return;
+  const row = g.closest('.srow'), list = $('#setlist'); if (!row || !list) return;
+  e.preventDefault(); try { g.setPointerCapture(e.pointerId); } catch (_) {}
+  row.classList.add('drag');
+  const mv = (ev) => {
+    const el = document.elementFromPoint(list.getBoundingClientRect().left + 20, ev.clientY), over = el && el.closest && el.closest('.srow');
+    if (over && over !== row && over.parentNode === list) { const r = over.getBoundingClientRect(); list.insertBefore(row, ev.clientY < r.top + r.height / 2 ? over : over.nextSibling); }
+    if (ev.clientY < 90) window.scrollBy(0, -12); else if (ev.clientY > innerHeight - 90) window.scrollBy(0, 12);
+  };
+  const up = async () => {
+    document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', up);
+    row.classList.remove('drag');
+    const set = setById(route().id); if (!set) return;
+    const order = [...list.querySelectorAll('.srow')].map((r) => +r.dataset.i), seen = new Set(order);
+    const hidden = set.items.map((_, i) => i).filter((i) => !seen.has(i)); // deleted songs keep their place at the end
+    const next = order.concat(hidden).map((i) => set.items[i]);
+    if (next.some((it, i) => it !== set.items[i])) { set.items = next; await saveSet(set); }
+    render();
+  };
+  document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
+});
 window.SBX = X;
 window.SB = { S, A, render, saveSong }; // handy for debugging/tests
 boot();

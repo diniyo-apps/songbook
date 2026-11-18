@@ -554,10 +554,19 @@ X.hooks.pdfPage = async (song, page, vp, canvas, hold) => {
     const x0 = tx[4] + itemW * (g.measureText(c.it.str.slice(0, c.start)).width / whole), tokW = itemW * (g.measureText(c.s).width / whole);
     const rx = Math.max(0, Math.floor(x0 - 3)), ry = Math.max(0, Math.floor(tx[5] - fh * 1.0)), rw = Math.min(canvas.width - rx, Math.ceil(tokW + 6)), rh = Math.min(canvas.height - ry, Math.ceil(fh * 1.3));
     if (rw < 2 || rh < 2) continue;
-    const d = g.getImageData(rx, ry, rw, rh).data, bg = [d[0], d[1], d[2]]; let best = 0, ink = null;
+    const d = g.getImageData(rx, ry, rw, rh).data; let best = 0, ink = null;
+    const hist = new Map(); let bg = [d[0], d[1], d[2]], top = 0;
+    for (let i = 0; i < d.length; i += 4) { const k = ((d[i] >> 3) << 10) | ((d[i + 1] >> 3) << 5) | (d[i + 2] >> 3), n = (hist.get(k) || 0) + 1; hist.set(k, n); if (n > top) { top = n; bg = [d[i], d[i + 1], d[i + 2]]; } }
     for (let i = 0; i < d.length; i += 4) { const dist = Math.abs(d[i] - bg[0]) + Math.abs(d[i + 1] - bg[1]) + Math.abs(d[i + 2] - bg[2]); if (dist > best) { best = dist; ink = [d[i], d[i + 1], d[i + 2]]; } }
     if (!ink || best < 60) ink = (bg[0] + bg[1] + bg[2]) / 3 > 128 ? [20, 20, 20] : [235, 235, 235];
     ops.push({ label, x0, y: tx[5], rx, ry, rw, rh, bg, ink, font: g.font, tokW });
+  }
+  // a changed chord can be wider than the old one: push it right so it never touches its neighbour on the same line
+  ops.sort((a, b) => (Math.round(a.y / a.rh) - Math.round(b.y / b.rh)) || (a.x0 - b.x0));
+  for (let i = 1; i < ops.length; i++) {
+    const a = ops[i - 1], b = ops[i]; if (Math.abs(a.y - b.y) >= a.rh * 0.4) continue;
+    g.font = a.font; const aw = g.measureText(a.label).width, gap = a.rh * 0.35;
+    if (b.x0 < a.x0 + aw + gap) b.x0 = a.x0 + aw + gap;
   }
   for (const o of ops) { g.fillStyle = `rgb(${o.bg})`; g.fillRect(o.rx, o.ry, o.rw, o.rh); }
   for (const o of ops) { g.font = o.font; g.fillStyle = `rgb(${o.ink})`; g.textBaseline = 'alphabetic'; g.fillText(o.label, o.x0, o.y); }

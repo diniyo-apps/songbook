@@ -272,3 +272,21 @@ html.stage .pdfhost { margin: 0 -14px; padding: 0 0 80px; } html.stage .pgcrop {
   html:not(.stage) .sbody .ln, html:not(.stage) .sbody .cr { break-inside: avoid; } html:not(.stage) .sbody .sec { break-after: avoid; }
 }
 .sbody.nowrap .ln, .sbody.nowrap .ln.plain { white-space: nowrap; } .sbody.nowrap .cr { flex-wrap: nowrap; }
+
+/* set navigation strip and reorder */
+.setnav { position: fixed; z-index: 29; left: 50%; transform: translateX(-50%); bottom: calc(14px + var(--sb) + 66px); display: flex; align-items: stretch; gap: 4px; padding: 5px; border-radius: 20px; border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(0,0,0,.4); width: min(560px, calc(100vw - 20px)); backdrop-filter: blur(24px) saturate(1.3); -webkit-backdrop-filter: blur(24px) saturate(1.3); }
+.sn { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 15px; border: 0; background: transparent; color: var(--text); font: inherit; font-weight: 600; font-size: 14px; text-align: left; min-height: 52px; }
+.sn.r { justify-content: flex-end; text-align: right; }
+.sn svg { width: 22px; height: 22px; flex: none; }
+.sn span { display: flex; flex-direction: column; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sn small { font-size: 11px; font-weight: 500; opacity: .65; }
+.sn.mid { flex: 0 0 74px; flex-direction: column; justify-content: center; gap: 0; text-align: center; background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.sn:active:not(:disabled) { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+.sn:disabled { opacity: .35; }
+body.hasnav .songpage { padding-bottom: calc(190px + var(--sb)); }
+html.stage .setnav { display: none !important; }
+.grip { flex: none; width: 36px; height: 44px; border: 0; background: transparent; color: var(--text); opacity: .6; touch-action: none; cursor: grab; display: grid; place-items: center; }
+.grip svg { width: 20px; height: 20px; }
+.srow.drag { opacity: .75; background: color-mix(in srgb, var(--accent) 18%, var(--card, transparent)); box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+.jrow { display: flex; align-items: center; } .jrow .jgo { flex: 1; text-align: left; background: transparent; border: 0; color: inherit; font: inherit; padding: 12px 4px; }
+.jrow.cur { background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 12px; }
