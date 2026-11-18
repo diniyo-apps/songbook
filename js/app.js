@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '1.3.2', build: '2026-11-18' });
+const APP = Object.freeze({ name: 'Songbook', version: '1.3.3', build: '2026-11-18' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -440,7 +440,7 @@ function paintSong() {
       : `<span class="keygrp"><button class="kb" data-act="shift" data-d="-1" aria-label="Key down">−</button><button class="pill key" data-act="open-key">${ico('keys')}<span>Key <b>${esc(k || '—')}</b></span></button><button class="kb" data-act="shift" data-d="1" aria-label="Key up">+</button></span>`) +
     (capo ? `<span class="pill">Capo ${capo}</span>` : '') +
     (!pdf ? `<button class="pill ${numbersOn ? 'on' : ''}" data-act="toggle-mode">${numbersOn ? 'Numbers' : 'Letters'}</button>`
-      : `${S.settings.pdfFit !== 'page' && S.settings.pdfZoom !== 100 ? '<button class="pill" data-act="pdf-zoom-reset">Zoom ' + S.settings.pdfZoom + '% · Reset</button>' : ''}<button class="pill ${S.settings.pdfTrim !== false ? 'on' : ''}" data-act="pdf-trim">Trim</button><button class="pill ${S.settings.pdfFit === 'page' ? 'on' : ''}" data-act="pdf-fit">${ico('fitpage')} Fit page</button><button class="pill ${S.ink && S.ink.on ? 'on' : ''}" data-act="pen">${ico('pen')} Pen</button>`) + hint;
+      : `<button class="pill ${S.settings.pdfTrim !== false ? 'on' : ''}" data-act="pdf-trim">Trim</button><button class="pill ${S.settings.pdfFit === 'page' ? 'on' : ''}" data-act="pdf-fit">${ico('fitpage')} Fit page</button><button class="pill ${S.ink && S.ink.on ? 'on' : ''}" data-act="pen">${ico('pen')} Pen</button>`) + hint;
   $('#notecard').innerHTML = song.notes ? `<div class="notecard"><b>Notes</b><p>${esc(song.notes)}</p></div>` : '';
   const set = S.cur.setId && setById(S.cur.setId);
   $('#dock').innerHTML = `
@@ -519,7 +519,7 @@ async function paintPdf(song, host) {
     if (X.hooks.pdfBefore) await X.hooks.pdfBefore(song, doc);
     if (my !== pdfTok) return;
     const stage = S.stage, fitPage = stage ? !!stage.pfit : S.settings.pdfFit === 'page';
-    const zoom = stage ? (stage.pz || 1) : (fitPage ? 1 : S.settings.pdfZoom / 100);
+    const zoom = stage ? (stage.pz || 1) : 1;
     const hostW = Math.min(host.clientWidth || window.innerWidth, window.innerWidth);
     const availW = Math.max(200, hostW - (stage ? 0 : 12));
     const availH = Math.max(240, window.innerHeight - (stage ? 8 : 150));
@@ -533,7 +533,7 @@ async function paintPdf(song, host) {
       const fw = bb.x1 - bb.x0, fh = bb.y1 - bb.y0;
       // same text size as the text songs: scale so the page's own text height equals the song font size (never wider than the screen at 100%)
       const wantW = inf.fs ? inf.wpt * (S.settings.fontSize / inf.fs) : Infinity;
-      const target = fitPage ? Math.min(availW, availH * (base.width * fw) / (base.height * fh)) : (stage ? availW * zoom : Math.min(availW, wantW) * zoom);
+      const target = fitPage ? Math.min(availW, availH * (base.width * fw) / (base.height * fh)) : (stage ? availW * zoom : Math.min(availW * S.settings.fontSize / 19, wantW));
       const width = target / fw;
       const dp = Math.min(dpr, 3000 / width);
       const vp = page.getViewport({ scale: (width * dp) / base.width });
@@ -1180,7 +1180,7 @@ async function moveItem(i, d) {
 async function fontStep(d) {
   if (X.hooks.stageFont && X.hooks.stageFont(d)) return;
   const c = S.cur && songById(S.cur.songId);
-  if (c && c.fmt === 'pdf') { if (S.settings.pdfFit === 'page') { S.settings.pdfFit = 'width'; S.settings.pdfZoom = 100; } S.settings.pdfZoom = Math.max(60, Math.min(260, S.settings.pdfZoom + d * 15)); await saveSettings(); paintSong(); return; }
+  if (c && c.fmt === 'pdf') { S.settings.pdfFit = 'width'; S.settings.fontSize = Math.max(13, Math.min(34, S.settings.fontSize + d)); await saveSettings(); paintSong(); return; }
   S.settings.fontSize = Math.max(13, Math.min(34, S.settings.fontSize + d)); await saveSettings();
   $('#songbody').style.setProperty('--fs', S.settings.fontSize + 'px');
 }
