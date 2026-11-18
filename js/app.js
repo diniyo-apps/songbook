@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '1.2.0', build: '2026-11-18' });
+const APP = Object.freeze({ name: 'Songbook', version: '1.3.0', build: '2026-11-18' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -60,7 +60,7 @@ const PRESETS = [
   { id: 'rose', name: 'Rose', bg: '#17100f', accent: '#ee9aa8', chord: '#f0d0a0' },
   { id: 'slate', name: 'Slate', bg: '#14161a', accent: '#9aa8bd', chord: '#e6c98f' },
 ];
-const DEFAULTS = { theme: 'night', bg: '#0d1016', accent: '#86b4f5', chord: '#e8c48e', style: 'solid', glass: 3, soften: true, fontSize: 19, mode: 'letters', chords: true, invertPdf: true, pdfZoom: 100, scrollSpeed: 3, wake: true,
+const DEFAULTS = { theme: 'night', bg: '#0d1016', accent: '#86b4f5', chord: '#e8c48e', style: 'solid', glass: 3, soften: true, fontSize: 19, mode: 'letters', chords: true, invertPdf: true, pdfSmart: true, pdfZoom: 100, scrollSpeed: 3, wake: true,
   glassT: 55, glassBlur: 55, bgImage: false, bgDim: 55, bgBlur: 0, hsl: null, pdfFit: 'width' };
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 function hexToHsl(hex) {
@@ -437,7 +437,7 @@ function paintSong() {
   $('#pills').innerHTML =
     (!pdf
       ? `<span class="keygrp"><button class="kb" data-act="shift" data-d="-1" aria-label="Key down">−</button><button class="pill key" data-act="open-key">${ico('keys')}<span>Key <b>${esc(k || '—')}</b></span></button><button class="kb" data-act="shift" data-d="1" aria-label="Key up">+</button></span>`
-      : `<button class="pill key" data-act="open-key">${ico('keys')}<span>Key <b>${esc(k || '—')}</b></span></button>`) +
+      : `<span class="keygrp"><button class="kb" data-act="shift" data-d="-1" aria-label="Key down">−</button><button class="pill key" data-act="open-key">${ico('keys')}<span>Key <b>${esc(k || '—')}</b></span></button><button class="kb" data-act="shift" data-d="1" aria-label="Key up">+</button></span>`) +
     (capo ? `<span class="pill">Capo ${capo}</span>` : '') +
     (!pdf ? `<button class="pill ${numbersOn ? 'on' : ''}" data-act="toggle-mode">${numbersOn ? 'Numbers' : 'Letters'}</button>`
       : `<button class="pill ${S.settings.pdfFit === 'page' ? 'on' : ''}" data-act="pdf-fit">${ico('fitpage')} Fit page</button><button class="pill ${S.ink && S.ink.on ? 'on' : ''}" data-act="pen">${ico('pen')} Pen</button>`) + hint;
@@ -455,13 +455,17 @@ function paintSong() {
   if (sh) sh.innerHTML = `<b>${esc(song.title)}</b><span>${k ? 'Key ' + esc(k) : ''}${capo ? ' · Capo ' + capo : ''}${set ? ' · ' + (S.cur.idx + 1) + '/' + set.items.length : ''}</span>`;
   if (X.hooks.paintSong) X.hooks.paintSong(song, holder);
 }
+let pdfTok = 0;
 async function paintPdf(song, host) {
   host.classList.add('pdfhost');
   host.innerHTML = '<p class="muted center pad">Loading PDF…</p>';
   try {
     const rec = await DB.get('blobs', song.pdfId);
     if (!rec) { host.innerHTML = '<p class="muted center pad">The PDF file for this song is missing. Restore a backup that contains it.</p>'; return; }
+    const my = ++pdfTok;
     const doc = await pdfjsLib.getDocument({ data: new Uint8Array(rec.data.slice(0)) }).promise;
+    if (X.hooks.pdfBefore) await X.hooks.pdfBefore(song, doc);
+    if (my !== pdfTok) return;
     const zoom = S.settings.pdfZoom / 100;
     const stage = !!S.stage, availW = Math.max(260, (host.clientWidth || window.innerWidth) - (stage ? 0 : 36));
     const availH = Math.max(240, window.innerHeight - (stage ? 8 : 150));
@@ -480,6 +484,8 @@ async function paintPdf(song, host) {
       c.style.width = width + 'px'; c.style.height = (vp.height / dpr) + 'px';
       c.className = 'pdfpage' + (S.settings.invertPdf ? ' inv' : '');
       await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+      if (X.hooks.pdfPage) await X.hooks.pdfPage(song, page, vp, c);
+      if (my !== pdfTok) return;
       wrap.appendChild(c); frag.appendChild(wrap);
     }
     host.innerHTML = ''; host.appendChild(frag);
@@ -521,10 +527,10 @@ function openKeySheet() {
     <div class="sh-h">Key adjustments</div>
     <div class="kv"><label>Key</label><select data-chg="set-key"><option value="" ${cur ? '' : 'selected'}>Not set</option><optgroup label="Major">${KEYS_MAJ.map(optOf).join('')}</optgroup><optgroup label="Minor">${KEYS_MIN.map(optOf).join('')}</optgroup></select></div>
     ${song.key ? `<div class="kv small muted"><label>Original</label><span>${esc(song.key)}</span></div>` : ''}
-    ${isPdf ? '<p class="muted small">PDF songs are pictures, so they cannot be transposed. You can still note the key.</p>' : `
+    ${isPdf && S.pdfInfo && S.pdfInfo.id === song.id && !S.pdfInfo.found ? '<p class="muted small">No readable chords were found in this PDF, so only the key label changes. Use “Make editable text copy” in the ⋯ menu to get chords you can transpose.</p>' : ''}
     <div class="kv"><label>Transpose</label><div class="stepper"><button data-act="shift" data-d="-1">−</button><b>${shift > 0 ? '+' : ''}${shift}</b><button data-act="shift" data-d="1">+</button></div></div>
     <div class="kv"><label>Capo</label><div class="stepper"><button data-act="capo-x" aria-label="No capo">${ico('close')}</button><b>${capo}</b><button data-act="capo" data-d="-1">−</button><button data-act="capo" data-d="1">+</button></div></div>
-    <div class="kv"><label>Show chords as</label><div class="seg"><button class="${S.settings.mode === 'letters' ? 'on' : ''}" data-act="mode" data-m="letters">Letters</button><button class="${S.settings.mode === 'numbers' ? 'on' : ''}" data-act="mode" data-m="numbers">Numbers</button></div></div>`}
+    <div class="kv"><label>Show chords as</label><div class="seg"><button class="${S.settings.mode === 'letters' ? 'on' : ''}" data-act="mode" data-m="letters">Letters</button><button class="${S.settings.mode === 'numbers' ? 'on' : ''}" data-act="mode" data-m="numbers">Numbers</button></div></div>
     ${row ? `<div class="nns"><div class="nh">Nashville numbers in ${esc(cur)}</div><div class="ng">${row.map((c) => `<div><i>${esc(c.label)}</i><b>${esc(c.chord)}</b></div>`).join('')}</div></div>` : ''}
     <div class="btnrow"><button class="btn" data-act="reset-key">Reset</button><button class="btn primary" data-act="close-sheet">Done</button></div>`);
 }
@@ -681,6 +687,7 @@ function viewSettings() {
   <section class="card"><h3>Display</h3>
     ${rng('Text size', 'fontPct', 68, 179, Math.round(st.fontSize / 19 * 100))}
     <div class="kv"><label>Chords as</label><div class="seg"><button class="${st.mode === 'letters' ? 'on' : ''}" data-act="mode" data-m="letters">Letters</button><button class="${st.mode === 'numbers' ? 'on' : ''}" data-act="mode" data-m="numbers">Numbers</button></div></div>
+    <div class="kv"><label>Change chords inside PDFs with the key</label><button class="sw ${st.pdfSmart !== false ? 'on' : ''}" data-act="sw" data-k="pdfSmart" aria-label="toggle"></button></div>
     <div class="kv"><label>Dim PDFs for dark mode</label><button class="sw ${st.invertPdf ? 'on' : ''}" data-act="sw" data-k="invertPdf" aria-label="toggle"></button></div>
     <div class="kv"><label>Keep screen awake</label><button class="sw ${st.wake ? 'on' : ''}" data-act="sw" data-k="wake" aria-label="toggle"></button></div>
     ${rng('Auto-scroll speed', 'speedPct', 20, 100, st.scrollSpeed * 20, { step: 20 })}
@@ -1032,6 +1039,7 @@ const A = {
     sheet(`<div class="sh-h">${esc(s.title)}</div>
       <button class="row" data-act="share-song"><span class="rt"><span class="t">Share to the band…</span></span></button>
       <button class="row" data-act="stage"><span class="rt"><span class="t">Stage mode</span></span></button>
+      ${s.fmt === 'pdf' ? '<button class="row" data-act="pdf-to-text"><span class="rt"><span class="t">Make editable text copy</span><span class="a">Chords become real text you can transpose and edit</span></span></button>' : ''}
       <button class="row" data-act="song-addset"><span class="rt"><span class="t">Add to a set…</span></span></button>
       <button class="row" data-act="song-dup"><span class="rt"><span class="t">Duplicate</span></span></button>
       <button class="row" data-act="song-edit"><span class="rt"><span class="t">Edit</span></span></button>
@@ -1196,7 +1204,7 @@ async function boot() {
   }
 }
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
-Object.assign(X, { rng, S, A, $, $$, esc, ico, IC, sheet, closeSheet, toast, confirmBox, songById, setById, live, fmtDate, now, uid, go, route, DB, download, makeCtx, keyLabel, holderOf, curSong, curHolder, paintSong, saveSong, saveSettings, applyTheme, acquireWake, releaseWake, stopScroll, startScroll, setStep, APP, copyrightLine, get sheetCtx() { return sheetCtx; }, set sheetCtx(v) { sheetCtx = v; } });
+Object.assign(X, { newSong, rng, S, A, $, $$, esc, ico, IC, sheet, closeSheet, toast, confirmBox, songById, setById, live, fmtDate, now, uid, go, route, DB, download, makeCtx, keyLabel, holderOf, curSong, curHolder, paintSong, saveSong, saveSettings, applyTheme, acquireWake, releaseWake, stopScroll, startScroll, setStep, APP, copyrightLine, get sheetCtx() { return sheetCtx; }, set sheetCtx(v) { sheetCtx = v; } });
 window.SBX = X;
 window.SB = { S, A, render, saveSong }; // handy for debugging/tests
 boot();

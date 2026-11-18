@@ -291,6 +291,7 @@ async function drawPdfSong(pages, song, holder) {
     const vp = page.getViewport({ scale: sc * 1.5 });
     const tmp = document.createElement('canvas'); tmp.width = Math.floor(vp.width); tmp.height = Math.floor(vp.height);
     await page.render({ canvasContext: tmp.getContext('2d'), viewport: vp }).promise;
+    await X.hooks.pdfPage(song, page, vp, tmp, holder);
     const dw = base.width * sc, dh = base.height * sc;
     pg.g.drawImage(tmp, M + (boxW - dw) / 2, 100, dw, dh);
     drawInkOn(pg.g, song, p - 1, M + (boxW - dw) / 2, 100, dw, dh);
@@ -490,6 +491,122 @@ Object.assign(A, {
     }, true);
   },
 });
+
+// ───────────────────────── key change inside PDFs ─────────────────────────
+// Most chord-chart PDFs keep their chords as real text. We find those chords on each page,
+// paint over them and draw the chord for the chosen key in the same place, so the page keeps its look.
+const CH_ALLOW = /^(?:[-–—|/:.,()*~_]+|x\d+|\d+x|[A-Za-z]{2,12}:)$/;
+const pdfCache = new Map();
+async function analyzePage(song, page) {
+  const key = song.pdfId + ':' + page.pageNumber; if (pdfCache.has(key)) return pdfCache.get(key);
+  const tc = await page.getTextContent(), styles = tc.styles || {};
+  const items = tc.items.filter((it) => it.str && it.str.trim() && Math.abs(it.transform[1]) < 0.01);
+  const rows = [];
+  for (const it of items.slice().sort((a, b) => b.transform[5] - a.transform[5])) {
+    const h = Math.hypot(it.transform[2], it.transform[3]) || 10;
+    let r = rows.find((q) => Math.abs(q.y - it.transform[5]) < Math.max(2, h * 0.45));
+    if (!r) { r = { y: it.transform[5], h, items: [] }; rows.push(r); }
+    r.items.push(it);
+  }
+  const chords = [];
+  for (const r of rows) {
+    r.items.sort((a, b) => a.transform[4] - b.transform[4]);
+    r.toks = [];
+    for (const it of r.items) { const re = /[^\s\-–—|]+/g; let m; while ((m = re.exec(it.str))) r.toks.push({ s: m[0], start: m.index, it }); }
+    r.chordLine = r.toks.length > 0 && r.toks.some((t) => Music.parseChord(t.s)) && r.toks.every((t) => Music.parseChord(t.s) || CH_ALLOW.test(t.s));
+    if (r.chordLine) for (const t of r.toks) if (Music.parseChord(t.s)) chords.push({ s: t.s, start: t.start, it: t.it, family: (styles[t.it.fontName] || {}).fontFamily || 'sans-serif' });
+    else for (let i = 0; i < r.toks.length - 1; i++) { // a header such as "Key of E" or "Key: E" moves with the chords
+      if (!/^key:?$/i.test(r.toks[i].s)) continue;
+      let j = i + 1; if (/^of$/i.test(r.toks[j].s)) j++;
+      const t = r.toks[j]; if (t && Music.parseChord(t.s)) chords.push({ s: t.s, start: t.start, it: t.it, keyTok: true, family: (styles[t.it.fontName] || {}).fontFamily || 'sans-serif' });
+    }
+  }
+  const res = { chords, rows }; pdfCache.set(key, res); return res;
+}
+X.hooks.pdfBefore = async (song, doc) => {
+  const old = $('#pdfhint'); if (old) old.remove();
+  if (S.settings.pdfSmart === false) return;
+  let all = [];
+  for (let p = 1; p <= doc.numPages; p++) all = all.concat((await analyzePage(song, await doc.getPage(p))).chords);
+  S.pdfInfo = { id: song.id, found: all.length };
+  if (all.length && !song.key) {
+    const k = Music.inferKey(all.map((c) => c.s)); if (k) { song.key = k; await X.saveSong(song); const b = $('.pill.key b'); if (b) b.textContent = X.keyLabel(song, X.curHolder() || song); }
+  }
+  if (!all.length) { const n = $('#notecard'); if (n) n.insertAdjacentHTML('beforeend', '<p class="hint" id="pdfhint">No readable chords in this PDF, so only the key label changes. Tap ⋯ → <b>Make editable text copy</b> to get chords you can transpose.</p>'); }
+};
+X.hooks.pdfPage = async (song, page, vp, canvas, hold) => {
+  if (S.settings.pdfSmart === false) return;
+  const holder = hold || X.curHolder(); if (!holder) return;
+  const ctx = X.makeCtx(song, holder);
+  if (ctx.tonic == null || (!ctx.shift && !ctx.capo && ctx.mode === 'letters')) return;
+  const { chords } = await analyzePage(song, page); if (!chords.length) return;
+  const g = canvas.getContext('2d', { willReadFrequently: true }), ops = [];
+  for (const c of chords) {
+    if (c.keyTok && ctx.mode === 'numbers') continue;
+    const ch = Music.parseChord(c.s); if (!ch) continue;
+    const label = Music.renderChord(ch, ctx); if (label === c.s) continue;
+    const tx = pdfjsLib.Util.transform(vp.transform, c.it.transform), fh = Math.hypot(tx[2], tx[3]), itemW = c.it.width * vp.scale;
+    const fam = /,/.test(c.family) ? c.family : c.family + ', sans-serif';
+    g.font = `400 ${fh}px ${fam}`; const wReg = g.measureText(c.it.str).width; g.font = `700 ${fh}px ${fam}`; const wBold = g.measureText(c.it.str).width;
+    const bold = Math.abs(wBold - itemW) < Math.abs(wReg - itemW), wt = bold ? 700 : 400, whole = bold ? wBold : wReg; if (!whole) continue;
+    g.font = `${wt} ${fh}px ${fam}`;
+    const x0 = tx[4] + itemW * (g.measureText(c.it.str.slice(0, c.start)).width / whole), tokW = itemW * (g.measureText(c.s).width / whole);
+    const rx = Math.max(0, Math.floor(x0 - 3)), ry = Math.max(0, Math.floor(tx[5] - fh * 1.0)), rw = Math.min(canvas.width - rx, Math.ceil(tokW + 6)), rh = Math.min(canvas.height - ry, Math.ceil(fh * 1.3));
+    if (rw < 2 || rh < 2) continue;
+    const d = g.getImageData(rx, ry, rw, rh).data, bg = [d[0], d[1], d[2]]; let best = 0, ink = null;
+    for (let i = 0; i < d.length; i += 4) { const dist = Math.abs(d[i] - bg[0]) + Math.abs(d[i + 1] - bg[1]) + Math.abs(d[i + 2] - bg[2]); if (dist > best) { best = dist; ink = [d[i], d[i + 1], d[i + 2]]; } }
+    if (!ink || best < 60) ink = (bg[0] + bg[1] + bg[2]) / 3 > 128 ? [20, 20, 20] : [235, 235, 235];
+    ops.push({ label, x0, y: tx[5], rx, ry, rw, rh, bg, ink, font: g.font, tokW });
+  }
+  for (const o of ops) { g.fillStyle = `rgb(${o.bg})`; g.fillRect(o.rx, o.ry, o.rw, o.rh); }
+  for (const o of ops) { g.font = o.font; g.fillStyle = `rgb(${o.ink})`; g.textBaseline = 'alphabetic'; g.fillText(o.label, o.x0, o.y); }
+};
+// make a real text song from a PDF (chords above the lyrics, aligned by position)
+const HEAD_RE = /^(verse|chorus|bridge|intro|outro|pre-?chorus|tag|interlude|instrumental|ending|refrain|coda|turnaround|vamp)\b/i;
+async function pdfToText(song) {
+  const rec = await X.DB.get('blobs', song.pdfId); if (!rec) throw new Error('The PDF file is missing');
+  const doc = await pdfjsLib.getDocument({ data: new Uint8Array(rec.data.slice(0)) }).promise;
+  const out = []; let found = 0;
+  const rowText = (r) => { let t = '', end = null; for (const it of r.items) { if (end != null && it.transform[4] - end > r.h * 0.2 && !/\s$/.test(t)) t += ' '; t += it.str; end = it.transform[4] + it.width; } return t.replace(/\s+$/, ''); };
+  for (let p = 1; p <= doc.numPages; p++) {
+    const { rows } = await analyzePage(song, await doc.getPage(p));
+    let prevY = null, prevH = 10;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i], txt = rowText(r);
+      if (!txt.trim() || /^page\s*\d+$/i.test(txt.trim())) continue;
+      if (prevY != null && prevY - r.y > prevH * 2.1 && out.length && out[out.length - 1] !== '') out.push('');
+      prevY = r.y; prevH = r.h;
+      if (r.chordLine) {
+        found += r.toks.filter((t) => Music.parseChord(t.s)).length;
+        const n = rows[i + 1];
+        if (n && !n.chordLine && r.y - n.y < Math.max(r.h, n.h) * 2.4 && !HEAD_RE.test(rowText(n).trim())) {
+          const lyric = rowText(n), x0 = n.items[0].transform[4], last = n.items[n.items.length - 1], w = last.transform[4] + last.width - x0, cw = w / Math.max(1, lyric.length);
+          let line = '';
+          for (const t of r.toks) { const x = t.it.transform[4] + t.it.width * (t.start / Math.max(1, t.it.str.length)); const idx = clamp(Math.round((x - x0) / cw), 0, 400); const pos = Math.max(idx, line ? line.length + 1 : 0); line = line.padEnd(pos) + t.s; }
+          out.push(line, lyric); prevY = n.y; prevH = n.h; i++; continue;
+        }
+        const lab = r.toks[0] && /:$/.test(r.toks[0].s) ? r.toks.shift().s.replace(/:$/, '') : '';
+        if (lab) out.push('[' + lab + ']');
+        out.push(r.toks.map((t) => t.s).join('  ')); continue;
+      }
+      out.push(HEAD_RE.test(txt.trim()) && txt.trim().split(/\s+/).length <= 3 ? '[' + txt.trim().replace(/:$/, '') + ']' : txt);
+    }
+    if (out.length && out[out.length - 1] !== '') out.push('');
+  }
+  while (out.length && out[out.length - 1] === '') out.pop();
+  return { body: out.join('\n'), found };
+}
+A['pdf-to-text'] = async () => {
+  const song = X.curSong(); if (!song || song.fmt !== 'pdf') return; closeSheet();
+  toast('Reading the PDF…', 60000);
+  try {
+    const { body, found } = await pdfToText(song);
+    if (!body.trim()) { toast('This PDF is a picture with no text, so it cannot be converted'); return; }
+    const key = song.key || Music.inferKey(Music.collectChords(body).letters) || '';
+    const n = X.newSong({ title: song.title + ' (text)', author: song.author, key, body, notes: song.notes || '', tags: (song.tags || []).slice() });
+    await X.saveSong(n); toast(found ? 'Text copy made. Check it, then edit as you like.' : 'Text copy made (no chords were found).', 4500); X.go('#/edit/' + encodeURIComponent(n.id));
+  } catch (e) { console.error(e); toast('Could not convert: ' + (e.message || e), 5000); }
+};
 window.addEventListener('hashchange', () => { if (X.route().name !== 'song') { if (S.stage) exitStage(); penOff(); } });
-window.SBP = { chartText, setText, songText, buildPdf, makeSetPdf, makeSongPdf, fitStage, enterStage, exitStage };
+window.SBP = { pdfToText, analyzePage, chartText, setText, songText, buildPdf, makeSetPdf, makeSongPdf, fitStage, enterStage, exitStage };
 })();
