@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '1.4.2', build: '2026-11-18' });
+const APP = Object.freeze({ name: 'Songbook', version: '1.4.3', build: '2026-11-18' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -439,6 +439,8 @@ function setJumpSheet() {
   const rows = set.items.map((it, i) => { const sg = songById(it.songId); if (!sg || sg.deleted) return '';
     return `<div class="row jrow ${i === S.cur.idx ? 'cur' : ''}"><button class="rt jgo" data-act="set-goto" data-i="${i}"><span class="t"><em>${i + 1}.</em> ${esc(sg.title)}</span></button><span class="mv"><button class="ibtn sm" data-act="jump-up" data-i="${i}" aria-label="Move up">${ico('ud')}</button><button class="ibtn sm" data-act="jump-down" data-i="${i}" aria-label="Move down">${ico('dd')}</button></span></div>`; }).join('');
   sheet(`<div class="sh-h">${esc(set.name)}</div><p class="muted small">Tap a song to open it. Use the arrows to change the order.</p><div class="pklist">${rows}</div><div class="btnrow"><button class="btn primary" data-act="close-sheet">Done</button></div>`);
+  const showCur = () => { const el = document.querySelector('.jrow.cur'); if (el) el.scrollIntoView({ block: 'center' }); };
+  showCur(); setTimeout(showCur, 60); setTimeout(showCur, 250);
 }
 async function jumpMove(i, d) {
   const set = setById(S.cur.setId), j = i + d; if (!set || j < 0 || j >= set.items.length) return;

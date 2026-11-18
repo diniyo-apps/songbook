@@ -293,3 +293,6 @@ html.stage .setnav { display: none !important; }
 
 .srow.here { background: color-mix(in srgb, var(--accent) 20%, transparent); border-radius: 12px; box-shadow: inset 3px 0 0 var(--accent); }
 .setlink { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-size: inherit; }
+
+.jrow.cur { background: color-mix(in srgb, var(--accent) 24%, transparent); box-shadow: inset 4px 0 0 var(--accent); border-radius: 12px; }
+.jrow.cur .t { color: var(--accent); font-weight: 800; }
