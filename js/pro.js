@@ -13,7 +13,7 @@ let barTimer = 0;
 function enterStage() {
   const song = X.curSong(); if (!song) return;
   closeSheet();
-  S.stage = { fit: true, fs: null };
+  S.stage = { fit: true, fs: null, pfit: false, pz: 1 };
   root.classList.add('stage');
   try { if (root.requestFullscreen && !document.fullscreenElement) root.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); } catch (_) {}
   buildBar();
@@ -45,8 +45,8 @@ function paintBar() {
   b.innerHTML = `
     <button class="dk exit" data-act="stage-exit" aria-label="Exit stage mode">${ico('close')}<span>Exit</span></button>
     ${set ? `<button class="dk" data-act="set-prev" aria-label="Previous song">${ico('back')}</button>` : ''}
-    ${pdf ? '' : `<button class="dk" data-act="font-" aria-label="Smaller text"><b>A</b><sup>−</sup></button><button class="dk ${S.stage && S.stage.fit ? 'on' : ''}" data-act="stage-fit" aria-label="Fit to screen">${ico('fitpage')}</button><button class="dk" data-act="font+" aria-label="Larger text"><b>A</b><sup>+</sup></button>
-    <button class="dk ${S.settings.chords ? 'on' : ''}" data-act="toggle-chords" aria-label="Show chords"><span>♯♭</span></button>
+    <button class="dk" data-act="font-" aria-label="Smaller text"><b>A</b><sup>−</sup></button><button class="dk ${S.stage && (pdf ? S.stage.pfit : S.stage.fit) ? 'on' : ''}" data-act="stage-fit" aria-label="Fit to screen">${ico('fitpage')}</button><button class="dk" data-act="font+" aria-label="Larger text"><b>A</b><sup>+</sup></button>
+    ${pdf ? '' : `<button class="dk ${S.settings.chords ? 'on' : ''}" data-act="toggle-chords" aria-label="Show chords"><span>♯♭</span></button>
     <button class="kb" data-act="shift" data-d="-1" aria-label="Key down">−</button><button class="kb" data-act="shift" data-d="1" aria-label="Key up">+</button>`}
     <button class="dk" data-act="autoscroll" aria-label="Auto scroll">${ico('play')}</button>
     ${set ? `<button class="dk" data-act="set-next" aria-label="Next song">${ico('chev')}</button>` : ''}`;
@@ -82,7 +82,8 @@ function fitStage() {
 }
 X.hooks.stageFont = (d) => {
   if (!S.stage) return false;
-  const song = X.curSong(); if (song && song.fmt === 'pdf') return true;
+  const song = X.curSong();
+  if (song && song.fmt === 'pdf') { S.stage.pz = clamp(Math.round((S.stage.pz + d * 0.2) * 100) / 100, 0.6, 3); S.stage.pfit = false; X.paintSong(); showBar(); return true; }
   const body = $('#songbody'); const cur = S.stage.fs || parseFloat(getComputedStyle(body).fontSize) || 24;
   S.stage.fit = false; body.classList.remove('nowrap'); S.stage.fs = clamp(Math.round(cur + d * 4), 12, 160);
   body.style.setProperty('--fs', S.stage.fs + 'px'); paintBar(); showBar();
@@ -102,7 +103,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.stage 
 Object.assign(A, {
   'stage': () => enterStage(),
   'stage-exit': () => exitStage(),
-  'stage-fit': () => { if (!S.stage) return; S.stage.fit = true; fitStage(); paintBar(); showBar(); },
+  'stage-fit': () => { if (!S.stage) return; const sg = X.curSong(); if (sg && sg.fmt === 'pdf') { S.stage.pfit = !S.stage.pfit; S.stage.pz = 1; X.paintSong(); paintBar(); showBar(); return; } S.stage.fit = true; fitStage(); paintBar(); showBar(); },
 });
 
 // ───────────────────────── plain-text charts ─────────────────────────

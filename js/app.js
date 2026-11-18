@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '1.3.0', build: '2026-11-18' });
+const APP = Object.freeze({ name: 'Songbook', version: '1.3.1', build: '2026-11-18' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -440,7 +440,7 @@ function paintSong() {
       : `<span class="keygrp"><button class="kb" data-act="shift" data-d="-1" aria-label="Key down">−</button><button class="pill key" data-act="open-key">${ico('keys')}<span>Key <b>${esc(k || '—')}</b></span></button><button class="kb" data-act="shift" data-d="1" aria-label="Key up">+</button></span>`) +
     (capo ? `<span class="pill">Capo ${capo}</span>` : '') +
     (!pdf ? `<button class="pill ${numbersOn ? 'on' : ''}" data-act="toggle-mode">${numbersOn ? 'Numbers' : 'Letters'}</button>`
-      : `<button class="pill ${S.settings.pdfFit === 'page' ? 'on' : ''}" data-act="pdf-fit">${ico('fitpage')} Fit page</button><button class="pill ${S.ink && S.ink.on ? 'on' : ''}" data-act="pen">${ico('pen')} Pen</button>`) + hint;
+      : `${S.settings.pdfFit !== 'page' && S.settings.pdfZoom !== 100 ? '<button class="pill" data-act="pdf-zoom-reset">Zoom ' + S.settings.pdfZoom + '% · Reset</button>' : ''}<button class="pill ${S.settings.pdfFit === 'page' ? 'on' : ''}" data-act="pdf-fit">${ico('fitpage')} Fit page</button><button class="pill ${S.ink && S.ink.on ? 'on' : ''}" data-act="pen">${ico('pen')} Pen</button>`) + hint;
   $('#notecard').innerHTML = song.notes ? `<div class="notecard"><b>Notes</b><p>${esc(song.notes)}</p></div>` : '';
   const set = S.cur.setId && setById(S.cur.setId);
   $('#dock').innerHTML = `
@@ -466,16 +466,17 @@ async function paintPdf(song, host) {
     const doc = await pdfjsLib.getDocument({ data: new Uint8Array(rec.data.slice(0)) }).promise;
     if (X.hooks.pdfBefore) await X.hooks.pdfBefore(song, doc);
     if (my !== pdfTok) return;
-    const zoom = S.settings.pdfZoom / 100;
-    const stage = !!S.stage, availW = Math.max(260, (host.clientWidth || window.innerWidth) - (stage ? 0 : 36));
+    const stage = S.stage, fitPage = stage ? !!stage.pfit : S.settings.pdfFit === 'page';
+    const zoom = stage ? (stage.pz || 1) : (fitPage ? 1 : S.settings.pdfZoom / 100);
+    const hostW = Math.min(host.clientWidth || window.innerWidth, window.innerWidth);
+    const availW = Math.max(200, hostW - (stage ? 0 : 36));
     const availH = Math.max(240, window.innerHeight - (stage ? 8 : 150));
     const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
     const frag = document.createDocumentFragment();
     for (let p = 1; p <= doc.numPages; p++) {
       const page = await doc.getPage(p);
       const base = page.getViewport({ scale: 1 });
-      let width = availW * (stage ? 1 : zoom);
-      if (stage || S.settings.pdfFit === 'page') width = Math.min(availW, availH * base.width / base.height) * (stage ? 1 : zoom);
+      const width = fitPage ? Math.min(availW, availH * base.width / base.height) : availW * zoom;
       const vp = page.getViewport({ scale: (width * dpr) / base.width });
       const wrap = document.createElement('div'); wrap.className = 'pgwrap'; wrap.dataset.page = String(p - 1);
       wrap.style.width = width + 'px'; wrap.style.height = (vp.height / dpr) + 'px';
@@ -499,11 +500,12 @@ function startScroll() {
   const tick = (t) => {
     acc += ((t - last) / 1000) * speeds[S.settings.scrollSpeed - 1]; last = t;
     if (acc >= 1) { window.scrollBy(0, Math.floor(acc)); acc -= Math.floor(acc); }
-    if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 2) { stopScroll(); paintSong(); return; }
+    if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 2 && !document.querySelector('#songbody .pad')) { stopScroll(); syncScrollBtn(); return; }
     autoRaf = requestAnimationFrame(tick);
   };
   autoRaf = requestAnimationFrame(tick);
 }
+function syncScrollBtn() { document.querySelectorAll('[data-act="autoscroll"]').forEach((b) => { b.classList.toggle('on', !!autoRaf); b.innerHTML = ico(autoRaf ? 'pause' : 'play'); }); }
 function stopScroll() { if (autoRaf) cancelAnimationFrame(autoRaf); autoRaf = 0; }
 async function acquireWake() {
   if (!S.settings.wake || !('wakeLock' in navigator)) return;
@@ -1059,7 +1061,7 @@ const A = {
   'toggle-mode': async () => { S.settings.mode = S.settings.mode === 'numbers' ? 'letters' : 'numbers'; await saveSettings(); paintSong(); },
   'toggle-chords': async () => { S.settings.chords = !S.settings.chords; await saveSettings(); paintSong(); },
   'font+': async () => fontStep(1), 'font-': async () => fontStep(-1),
-  'autoscroll': () => { if (autoRaf) stopScroll(); else startScroll(); paintSong(); },
+  'autoscroll': () => { if (autoRaf) stopScroll(); else startScroll(); syncScrollBtn(); },
   'set-prev': () => setStep(-1), 'set-next': () => setStep(1),
   // editor
   'edit-back': () => { const c = S.edit; if (c && !c.isNew) go('#/song/' + encodeURIComponent(c.song.id)); else go('#/songs'); },
@@ -1086,7 +1088,8 @@ const A = {
   'preset': async (el) => { const p = PRESETS.find((x) => x.id === el.dataset.v); Object.assign(S.settings, { theme: p.id, bg: p.bg, accent: p.accent, chord: p.chord, hsl: null }); applyTheme(); await saveSettings(); render(); },
   'style': async (el) => { S.settings.style = el.dataset.v; applyTheme(); await saveSettings(); render(); },
   'bg-clear': () => confirmBox('Remove background picture?', 'The picture is removed from this device. Your songs and sets are not touched.', 'Remove', async () => { S.settings.bgImage = false; S.bgData = ''; S.bgVer++; await DB.setMeta('bgimage', ''); await saveSettings(); applyTheme(); render(); toast('Picture removed'); }, true),
-  'pdf-fit': async () => { S.settings.pdfFit = S.settings.pdfFit === 'page' ? 'width' : 'page'; await saveSettings(); paintSong(); },
+  'pdf-fit': async () => { S.settings.pdfFit = S.settings.pdfFit === 'page' ? 'width' : 'page'; S.settings.pdfZoom = 100; await saveSettings(); paintSong(); },
+  'pdf-zoom-reset': async () => { S.settings.pdfZoom = 100; await saveSettings(); paintSong(); },
   'gl': async (el) => { S.settings.glass = clamp(S.settings.glass + (+el.dataset.d), 1, 5); applyTheme(); await saveSettings(); render(); },
   'fs': async (el) => { S.settings.fontSize = Math.max(13, Math.min(34, S.settings.fontSize + (+el.dataset.d))); await saveSettings(); render(); },
   'spd': async (el) => { S.settings.scrollSpeed = Math.max(1, Math.min(5, S.settings.scrollSpeed + (+el.dataset.d))); await saveSettings(); render(); },
@@ -1113,7 +1116,7 @@ async function moveItem(i, d) {
 async function fontStep(d) {
   if (X.hooks.stageFont && X.hooks.stageFont(d)) return;
   const c = S.cur && songById(S.cur.songId);
-  if (c && c.fmt === 'pdf') { S.settings.pdfZoom = Math.max(60, Math.min(260, S.settings.pdfZoom + d * 15)); await saveSettings(); paintSong(); return; }
+  if (c && c.fmt === 'pdf') { if (S.settings.pdfFit === 'page') { S.settings.pdfFit = 'width'; S.settings.pdfZoom = 100; } S.settings.pdfZoom = Math.max(60, Math.min(260, S.settings.pdfZoom + d * 15)); await saveSettings(); paintSong(); return; }
   S.settings.fontSize = Math.max(13, Math.min(34, S.settings.fontSize + d)); await saveSettings();
   $('#songbody').style.setProperty('--fs', S.settings.fontSize + 'px');
 }

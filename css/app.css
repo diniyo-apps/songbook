@@ -253,7 +253,7 @@ html.stage .songpage { max-width: none; padding: calc(var(--st) + 8px) 14px calc
 html.stage .sbody { line-height: 1.38; } html.stage .sbody .ln, html.stage .sbody .cr, html.stage .sbody .sec { break-inside: avoid; }
 html.stage .sbody { column-gap: 2.2em; }
 html.stage .sg .ly, html.stage .ln.plain { color: #f6f6f6; } html.stage .sg .ch, html.stage .cr .ch { color: #ffd479; background: none; } html.stage .sec { color: #9fc4ff; }
-html.stage .pdfhost { margin: 0 -14px; padding: 0; } html.stage .pgwrap { margin-bottom: 6px; }
+html.stage .pdfhost { margin: 0 -14px; padding: 0 0 80px; } html.stage .pgwrap { margin-bottom: 6px; }
 .stagebar { position: fixed; z-index: 60; left: 50%; transform: translate(-50%, 24px); bottom: calc(14px + var(--sb)); display: flex; gap: 4px; align-items: center; padding: 6px; border-radius: 22px; background: rgba(22,24,30,.94); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 14px 40px rgba(0,0,0,.7); max-width: calc(100vw - 16px); overflow-x: auto; scrollbar-width: none; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
 .stagebar.on { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
 .stagebar .exit { display: flex; gap: 6px; align-items: center; padding: 0 14px 0 10px; color: #ff9c9c; } .stagebar .exit .ic { width: 20px; height: 20px; } .stagebar .exit span { font-size: 15px; }
