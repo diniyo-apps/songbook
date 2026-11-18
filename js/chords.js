@@ -53,7 +53,8 @@
   }
 
   const css = (v) => `var(${v})`;
-  function guitarSvg(g) {
+  const OPEN_PC = [4, 9, 2, 7, 11, 4];
+  function guitarSvg(g, lab) {
     const W = 168, H = 178, x0 = 30, dx = 22, y0 = 40, dy = 25, nf = 5;
     const fretted = g.frets.filter((f) => f > 0);
     const minF = fretted.length ? Math.min(...fretted) : 1, maxF = fretted.length ? Math.max(...fretted) : 1;
@@ -71,13 +72,17 @@
       const x = x0 + i * dx;
       if (f < 0) s += `<path d="M${x - 5} ${y0 - 18}l10 10M${x + 5} ${y0 - 18}l-10 10" stroke="${css('--muted')}" stroke-width="2" stroke-linecap="round"/>`;
       else if (f === 0) s += `<circle cx="${x}" cy="${y0 - 13}" r="5" fill="none" stroke="${css('--text2')}" stroke-width="2"/>`;
-      else s += `<circle cx="${x}" cy="${y0 + (f - base + 0.5) * dy}" r="8.5" fill="${css('--accent')}"/>`;
+      else {
+        const cy = y0 + (f - base + 0.5) * dy;
+        s += `<circle cx="${x}" cy="${cy}" r="9.5" fill="${css('--accent')}"/>`;
+        if (lab) s += `<text x="${x}" y="${cy + 3.6}" text-anchor="middle" font-size="10" font-weight="800" fill="#0b0f16">${lab((OPEN_PC[i] + f) % 12)}</text>`;
+      }
     });
     return s + '</svg>';
   }
 
   // ---- piano ----
-  function pianoSvg(a, flats) {
+  function pianoSvg(a, flats, lab) {
     const WH = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24], BL = [1, 3, 6, 8, 10, 13, 15, 18, 20, 22];
     const w = 22, h = 92, bw = 14, bh = 56, W = WH.length * w, H = h + 26;
     const names = flats ? FLAT : SHARP;
@@ -89,23 +94,27 @@
     WH.forEach((n, i) => {
       const on = lit.get(n);
       s += `<rect x="${i * w + 0.5}" y="0.5" width="${w - 1}" height="${h}" rx="3" fill="${on ? css('--accent') : 'rgba(255,255,255,.88)'}" stroke="rgba(0,0,0,.5)"/>`;
-      if (on) s += `<text x="${i * w + w / 2}" y="${h + 16}" text-anchor="middle" font-size="12" font-weight="700" fill="${css('--text')}">${names[n % 12]}</text>`;
+      if (on) s += `<text x="${i * w + w / 2}" y="${h + 16}" text-anchor="middle" font-size="12" font-weight="700" fill="${css('--text')}">${lab ? lab(n % 12) : names[n % 12]}</text>`;
     });
     BL.forEach((n) => {
       const wi = WH.indexOf(n - 1); const x = (wi + 1) * w - bw / 2; const on = lit.get(n);
       s += `<rect x="${x}" y="0.5" width="${bw}" height="${bh}" rx="2.5" fill="${on ? css('--accent') : '#15181d'}" stroke="${on ? 'rgba(0,0,0,.6)' : '#000'}"/>`;
-      if (on) s += `<text x="${x + bw / 2}" y="${h + 16}" text-anchor="middle" font-size="12" font-weight="700" fill="${css('--text')}">${names[n % 12]}</text>`;
+      if (on) s += `<text x="${x + bw / 2}" y="${h + 16}" text-anchor="middle" font-size="12" font-weight="700" fill="${css('--text')}">${lab ? lab(n % 12) : names[n % 12]}</text>`;
     });
     return s + '</svg>';
   }
 
-  function info(name) {
+  // opts.tonic (pitch class of the key being played) + opts.mode 'numbers' label notes as Nashville numbers
+  function info(name, opts) {
     const a = analyse(name); if (!a) return null;
     const flats = /b/.test(a.rootName) || /^(F|Bb|Eb|Ab|Db)$/.test(a.rootName);
     const names = flats ? FLAT : SHARP;
-    const notes = a.iv.map((i) => names[(a.root + i) % 12]);
+    const num = opts && opts.mode === 'numbers' && opts.tonic != null && root.Music;
+    const lab = num ? (pc) => root.Music.degName(opts.tonic, pc) : null;
+    const nm = (pc) => (lab ? lab(pc % 12) : names[pc % 12]);
+    const notes = a.iv.map((i) => nm(a.root + i));
     const g = guitar(a);
-    return { a, notes, bass: a.bass != null ? names[a.bass] : '', guitar: g ? guitarSvg(g) : '', piano: pianoSvg(a, flats), approx: !!a.approx };
+    return { a, notes, bass: a.bass != null ? nm(a.bass) : '', guitar: g ? guitarSvg(g, lab || ((pc) => names[pc])) : '', piano: pianoSvg(a, flats, lab), approx: !!a.approx, rootLabel: nm(a.root) };
   }
 
   root.Chords = { info, analyse, frets: (n) => { const a = analyse(n); return a && guitar(a); } };

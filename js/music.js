@@ -257,8 +257,10 @@
   function keyFromSbpIndex(i) { return i >= 0 && i < 12 ? SBP_KEYS[i] : ''; }
   function sbpIndexFromKey(k) { const p = parseKey(k); return p ? mod(p.pc - 9) : -1; }
 
+  function degName(tonic, pc) { const r = pcToDeg(tonic, pc); return accStr(r.acc) + r.deg; }
+
   const api = {
-    SHARP, FLAT, ALL_KEYS, NNS_LABEL, parseKey, parseChord, renderChord, nnsRow, shiftKey, useFlats, pcName, pcOf, spell,
+    degName,    SHARP, FLAT, ALL_KEYS, NNS_LABEL, parseKey, parseChord, renderChord, nnsRow, shiftKey, useFlats, pcName, pcOf, spell,
     parseSong, collectChords, inferKey, keyFromTitle, keyFromText, keyFromSbpIndex, sbpIndexFromKey, mod,
   };
   root.Music = api;

@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '1.4.0', build: '2026-11-18' });
+const APP = Object.freeze({ name: 'Songbook', version: '1.4.1', build: '2026-11-18' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -398,7 +398,8 @@ async function viewSong(app, r) {
     const ts = (e) => { const t = e.changedTouches[0]; sx = t.clientX; sy = t.clientY; st = now(); };
     const te = (e) => {
       const t = e.changedTouches[0]; const dx = t.clientX - sx, dy = t.clientY - sy;
-      if (now() - st < 600 && Math.abs(dx) > 90 && Math.abs(dy) < 50) setStep(dx < 0 ? 1 : -1);
+      if ($('#modal-root').classList.contains('open') || document.body.classList.contains('penon') || /input|textarea|select/i.test(e.target.tagName)) return;
+      if (now() - st < 900 && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) { const h = e.target.closest && e.target.closest('.pdfhost'); if (h && h.scrollWidth > h.clientWidth + 4) return; setStep(dx < 0 ? 1 : -1); }
     };
     document.addEventListener('touchstart', ts, { passive: true }); document.addEventListener('touchend', te, { passive: true });
     const old = cleanup; cleanup = () => { document.removeEventListener('touchstart', ts); document.removeEventListener('touchend', te); if (old) old(); };
@@ -810,10 +811,15 @@ function aboutCard() {
     <p class="small muted">Your songs stay on this device. Nothing is uploaded.</p>
     <p class="cr-line">${esc(copyrightLine())}</p></section>`;
 }
-function openChordSheet(name) {
-  const c = Chords.info(name); if (!c) return;
-  sheet(`<div class="sh-h">${esc(name)}</div>
-    <p class="center muted small">Notes: <b class="cn">${c.notes.map(esc).join('  ')}</b>${c.bass ? ` · Bass: <b class="cn">${esc(c.bass)}</b>` : ''}${c.approx ? ' · closest match' : ''}</p>
+function openChordSheet(name, mode) {
+  const song = curSong(), holder = song && curHolder();
+  const ctx = song && holder ? makeCtx(song, holder) : null, canNum = !!(ctx && ctx.out != null);
+  mode = canNum ? (mode || S.settings.mode || 'letters') : 'letters';
+  const c = Chords.info(name, { tonic: ctx && ctx.out, mode }); if (!c) return;
+  const both = canNum ? Chords.info(name, { tonic: ctx.out, mode: mode === 'numbers' ? 'letters' : 'numbers' }) : null;
+  sheet(`<div class="sh-h">${esc(name)}${canNum ? ` <span class="muted">· ${esc(Chords.info(name, { tonic: ctx.out, mode: 'numbers' }).rootLabel)}</span>` : ''}</div>
+    ${canNum ? `<div class="center"><div class="seg"><button class="${mode === 'letters' ? 'on' : ''}" data-act="chord-mode" data-m="letters" data-n="${esc(name)}">Letters</button><button class="${mode === 'numbers' ? 'on' : ''}" data-act="chord-mode" data-m="numbers" data-n="${esc(name)}">Numbers</button></div></div>` : ''}
+    <p class="center muted small">Notes: <b class="cn">${c.notes.map(esc).join('  ')}</b>${both ? ` <span class="muted">(${both.notes.map(esc).join('  ')})</span>` : ''}${c.bass ? ` · Bass: <b class="cn">${esc(c.bass)}</b>` : ''}${c.approx ? ' · closest match' : ''}</p>
     <div class="dg"><div><h4>Guitar</h4>${c.guitar || '<p class="muted small">No guitar shape saved for this chord yet.</p>'}</div></div>
     <div class="dg"><div><h4>Piano</h4>${c.piano}</div></div>
     <div class="btnrow"><button class="btn primary" data-act="close-sheet">Done</button></div>`);
@@ -1163,6 +1169,7 @@ const A = {
   'toggle-chords': async () => { S.settings.chords = !S.settings.chords; await saveSettings(); paintSong(); },
   'font+': async () => fontStep(1), 'font-': async () => fontStep(-1),
   'autoscroll': () => { if (autoRaf) stopScroll(); else startScroll(); syncScrollBtn(); },
+  'chord-mode': (el) => openChordSheet(el.dataset.n, el.dataset.m),
   'set-prev': () => setStep(-1), 'set-next': () => setStep(1), 'set-jump': () => setJumpSheet(),
   'set-goto': (el) => { const set = setById(S.cur.setId), i = el.dataset.i | 0; closeSheet(); go(`#/song/${encodeURIComponent(set.items[i].songId)}?set=${encodeURIComponent(set.id)}&i=${i}`, true); },
   'jump-up': (el) => jumpMove(el.dataset.i | 0, -1), 'jump-down': (el) => jumpMove(el.dataset.i | 0, 1),
