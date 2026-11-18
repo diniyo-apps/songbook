@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '1.3.1', build: '2026-11-18' });
+const APP = Object.freeze({ name: 'Songbook', version: '1.3.2', build: '2026-11-18' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -61,7 +61,7 @@ const PRESETS = [
   { id: 'slate', name: 'Slate', bg: '#14161a', accent: '#9aa8bd', chord: '#e6c98f' },
 ];
 const DEFAULTS = { theme: 'night', bg: '#0d1016', accent: '#86b4f5', chord: '#e8c48e', style: 'solid', glass: 3, soften: true, fontSize: 19, mode: 'letters', chords: true, invertPdf: true, pdfSmart: true, pdfZoom: 100, scrollSpeed: 3, wake: true,
-  glassT: 55, glassBlur: 55, bgImage: false, bgDim: 55, bgBlur: 0, hsl: null, pdfFit: 'width' };
+  glassT: 55, glassBlur: 55, bgImage: false, bgDim: 55, bgBlur: 0, hsl: null, pdfFit: 'width', pdfTrim: true };
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 function hexToHsl(hex) {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return [220, 0.2, 0.08];
@@ -440,7 +440,7 @@ function paintSong() {
       : `<span class="keygrp"><button class="kb" data-act="shift" data-d="-1" aria-label="Key down">−</button><button class="pill key" data-act="open-key">${ico('keys')}<span>Key <b>${esc(k || '—')}</b></span></button><button class="kb" data-act="shift" data-d="1" aria-label="Key up">+</button></span>`) +
     (capo ? `<span class="pill">Capo ${capo}</span>` : '') +
     (!pdf ? `<button class="pill ${numbersOn ? 'on' : ''}" data-act="toggle-mode">${numbersOn ? 'Numbers' : 'Letters'}</button>`
-      : `${S.settings.pdfFit !== 'page' && S.settings.pdfZoom !== 100 ? '<button class="pill" data-act="pdf-zoom-reset">Zoom ' + S.settings.pdfZoom + '% · Reset</button>' : ''}<button class="pill ${S.settings.pdfFit === 'page' ? 'on' : ''}" data-act="pdf-fit">${ico('fitpage')} Fit page</button><button class="pill ${S.ink && S.ink.on ? 'on' : ''}" data-act="pen">${ico('pen')} Pen</button>`) + hint;
+      : `${S.settings.pdfFit !== 'page' && S.settings.pdfZoom !== 100 ? '<button class="pill" data-act="pdf-zoom-reset">Zoom ' + S.settings.pdfZoom + '% · Reset</button>' : ''}<button class="pill ${S.settings.pdfTrim !== false ? 'on' : ''}" data-act="pdf-trim">Trim</button><button class="pill ${S.settings.pdfFit === 'page' ? 'on' : ''}" data-act="pdf-fit">${ico('fitpage')} Fit page</button><button class="pill ${S.ink && S.ink.on ? 'on' : ''}" data-act="pen">${ico('pen')} Pen</button>`) + hint;
   $('#notecard').innerHTML = song.notes ? `<div class="notecard"><b>Notes</b><p>${esc(song.notes)}</p></div>` : '';
   const set = S.cur.setId && setById(S.cur.setId);
   $('#dock').innerHTML = `
@@ -456,6 +456,58 @@ function paintSong() {
   if (X.hooks.paintSong) X.hooks.paintSong(song, holder);
 }
 let pdfTok = 0;
+// find where the printed content sits (ink scan, used for scanned pages) on a page (fractions 0..1), so white margins can be trimmed away
+// text-based box + typical text size of a PDF page; falls back to the ink scan for scans/images
+async function pageInfo(page, base) {
+  const full = { x0: 0, y0: 0, x1: 1, y1: 1 };
+  try {
+    const tc = await page.getTextContent();
+    const it = tc.items.filter((i) => i.str && i.str.trim() && Math.abs(i.transform[3]) > 1);
+    if (it.length >= 4) {
+      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, bx0 = 1e9, bx1 = -1e9; const sizes = [];
+      for (const i of it) {
+        const h = Math.abs(i.transform[3]), yb = base.height - i.transform[5];
+        const len = i.str.length, tw = i.width || h * len * 0.5, lead = len - i.str.trimStart().length, trail = len - i.str.trimEnd().length;
+        const x = i.transform[4] + tw * lead / len, r = i.transform[4] + tw * (len - trail) / len, top = yb - h, bot = yb + h * 0.25;
+        x0 = Math.min(x0, x); x1 = Math.max(x1, r); y0 = Math.min(y0, top); y1 = Math.max(y1, bot);
+        if (yb > base.height * 0.12 && yb < base.height * 0.92) { bx0 = Math.min(bx0, x); bx1 = Math.max(bx1, r); }
+        for (let k = 0; k < Math.min(i.str.length, 40); k++) sizes.push(h);
+      }
+      if (bx1 > bx0) { x0 = bx0; x1 = bx1; }
+      sizes.sort((a, b) => a - b);
+      const fs = sizes[Math.floor(sizes.length / 2)];
+      const px = 0.02, py = 0.012, W = base.width, H = base.height;
+      const box = { x0: Math.max(0, x0 / W - px), x1: Math.min(1, x1 / W + px), y0: Math.max(0, y0 / H - py), y1: Math.min(1, y1 / H + py) };
+      if (box.x1 - box.x0 >= 0.2 && box.y1 - box.y0 >= 0.05) return { box, fs, wpt: (box.x1 - box.x0) * W };
+    }
+  } catch (_) {}
+  return { box: await inkBox(page, base), fs: 0, wpt: 0 };
+}
+async function inkBox(page, base) {
+  const full = { x0: 0, y0: 0, x1: 1, y1: 1 };
+  try {
+    const sc = 360 / base.width, vp = page.getViewport({ scale: sc });
+    const c = document.createElement('canvas'); c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+    const g = c.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+    await page.render({ canvasContext: g, viewport: vp }).promise;
+    const d = g.getImageData(0, 0, c.width, c.height).data, W = c.width, H = c.height;
+    let x0 = W, x1 = -1, y0 = H, y1 = -1, bx0 = W, bx1 = -1;
+    const ra = Math.floor(H * 0.06), rb = Math.ceil(H * 0.95); // header/footer (page numbers, "Key of A") don't decide the width
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      if (d[i] + d[i + 1] + d[i + 2] < 690) {
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        if (y >= ra && y <= rb) { if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; }
+      }
+    }
+    if (bx1 >= 0) { x0 = bx0; x1 = bx1; }
+    if (x1 < 0) return full;
+    const px = 0.025, py = 0.015;
+    const r = { x0: Math.max(0, x0 / W - px), x1: Math.min(1, (x1 + 1) / W + px), y0: Math.max(0, y0 / H - py), y1: Math.min(1, (y1 + 1) / H + py) };
+    if (r.x1 - r.x0 < 0.3 || r.y1 - r.y0 < 0.08) return full;
+    return r;
+  } catch (_) { return full; }
+}
 async function paintPdf(song, host) {
   host.classList.add('pdfhost');
   host.innerHTML = '<p class="muted center pad">Loading PDF…</p>';
@@ -469,25 +521,36 @@ async function paintPdf(song, host) {
     const stage = S.stage, fitPage = stage ? !!stage.pfit : S.settings.pdfFit === 'page';
     const zoom = stage ? (stage.pz || 1) : (fitPage ? 1 : S.settings.pdfZoom / 100);
     const hostW = Math.min(host.clientWidth || window.innerWidth, window.innerWidth);
-    const availW = Math.max(200, hostW - (stage ? 0 : 36));
+    const availW = Math.max(200, hostW - (stage ? 0 : 12));
     const availH = Math.max(240, window.innerHeight - (stage ? 8 : 150));
     const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
     const frag = document.createDocumentFragment();
     for (let p = 1; p <= doc.numPages; p++) {
       const page = await doc.getPage(p);
       const base = page.getViewport({ scale: 1 });
-      const width = fitPage ? Math.min(availW, availH * base.width / base.height) : availW * zoom;
-      const vp = page.getViewport({ scale: (width * dpr) / base.width });
+      const inf = S.settings.pdfTrim !== false ? await pageInfo(page, base) : { box: { x0: 0, y0: 0, x1: 1, y1: 1 }, fs: 0, wpt: 0 };
+      const bb = inf.box;
+      const fw = bb.x1 - bb.x0, fh = bb.y1 - bb.y0;
+      // same text size as the text songs: scale so the page's own text height equals the song font size (never wider than the screen at 100%)
+      const wantW = inf.fs ? inf.wpt * (S.settings.fontSize / inf.fs) : Infinity;
+      const target = fitPage ? Math.min(availW, availH * (base.width * fw) / (base.height * fh)) : (stage ? availW * zoom : Math.min(availW, wantW) * zoom);
+      const width = target / fw;
+      const dp = Math.min(dpr, 3000 / width);
+      const vp = page.getViewport({ scale: (width * dp) / base.width });
+      const hpx = vp.height / dp;
+      const crop = document.createElement('div'); crop.className = 'pgcrop';
+      crop.style.width = (width * fw) + 'px'; crop.style.height = (hpx * fh) + 'px';
       const wrap = document.createElement('div'); wrap.className = 'pgwrap'; wrap.dataset.page = String(p - 1);
-      wrap.style.width = width + 'px'; wrap.style.height = (vp.height / dpr) + 'px';
+      wrap.style.width = width + 'px'; wrap.style.height = hpx + 'px';
+      wrap.style.margin = `${-hpx * bb.y0}px 0 0 ${-width * bb.x0}px`;
       const c = document.createElement('canvas');
       c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
-      c.style.width = width + 'px'; c.style.height = (vp.height / dpr) + 'px';
+      c.style.width = width + 'px'; c.style.height = hpx + 'px';
       c.className = 'pdfpage' + (S.settings.invertPdf ? ' inv' : '');
       await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
       if (X.hooks.pdfPage) await X.hooks.pdfPage(song, page, vp, c);
       if (my !== pdfTok) return;
-      wrap.appendChild(c); frag.appendChild(wrap);
+      crop.appendChild(wrap); wrap.appendChild(c); frag.appendChild(crop); continue;
     }
     host.innerHTML = ''; host.appendChild(frag);
     if (X.hooks.afterPdf) X.hooks.afterPdf(song, host);
@@ -1089,6 +1152,7 @@ const A = {
   'style': async (el) => { S.settings.style = el.dataset.v; applyTheme(); await saveSettings(); render(); },
   'bg-clear': () => confirmBox('Remove background picture?', 'The picture is removed from this device. Your songs and sets are not touched.', 'Remove', async () => { S.settings.bgImage = false; S.bgData = ''; S.bgVer++; await DB.setMeta('bgimage', ''); await saveSettings(); applyTheme(); render(); toast('Picture removed'); }, true),
   'pdf-fit': async () => { S.settings.pdfFit = S.settings.pdfFit === 'page' ? 'width' : 'page'; S.settings.pdfZoom = 100; await saveSettings(); paintSong(); },
+  'pdf-trim': async () => { S.settings.pdfTrim = S.settings.pdfTrim === false; await saveSettings(); paintSong(); },
   'pdf-zoom-reset': async () => { S.settings.pdfZoom = 100; await saveSettings(); paintSong(); },
   'gl': async (el) => { S.settings.glass = clamp(S.settings.glass + (+el.dataset.d), 1, 5); applyTheme(); await saveSettings(); render(); },
   'fs': async (el) => { S.settings.fontSize = Math.max(13, Math.min(34, S.settings.fontSize + (+el.dataset.d))); await saveSettings(); render(); },

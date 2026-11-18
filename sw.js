@@ -1,5 +1,5 @@
 /* Offline cache. Bump VERSION when any file changes so phones pick up the update. */
-const VERSION = 'songbook-v1.3.1';
+const VERSION = 'songbook-v1.3.2';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/pro.js', 'js/music.js', 'js/chords.js', 'js/db.js', 'js/md5.js',

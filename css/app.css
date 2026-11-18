@@ -141,7 +141,8 @@ select option, select optgroup { background: var(--sheet, #1a1f28); color: var(-
 .cr .ch { color: var(--chord); font-weight: 700; font-size: .9em; padding: 1px 9px; border-radius: 8px; background: rgba(232,196,142,.1); }
 .cr .bar { color: var(--muted); }
 .gap { height: .55em; }
-.pdfhost { overflow-x: auto; margin: 0 -18px; padding: 0 18px; }
+.pdfhost { overflow-x: auto; margin: 0 -18px; padding: 0 6px; }
+.pgcrop { overflow: hidden; margin: 0 auto 8px; border-radius: 4px; position: relative; flex: none; }
 .hint b { color: var(--accent); }
 .pdfpage { display: block; margin: 0 auto 14px; border-radius: 6px; max-width: none; }
 .pdfpage.inv { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.92); }
@@ -236,7 +237,7 @@ textarea { min-height: 46vh; resize: vertical; font-family: ui-monospace, "SF Mo
 textarea.notes { min-height: 84px; font-family: inherit; white-space: pre-wrap; font-size: 16px; }
 .row.share { padding: 14px 6px; }
 /* PDF pages + pen */
-.pgwrap { position: relative; margin: 0 auto 14px; } .pgwrap .pdfpage { margin: 0; }
+.pgwrap { position: relative; } .pgwrap .pdfpage { margin: 0; }
 .inkc { position: absolute; inset: 0; pointer-events: none; }
 body.penon .inkc { pointer-events: auto; touch-action: none; cursor: crosshair; }
 .penbar { position: fixed; z-index: 45; left: 50%; transform: translateX(-50%); bottom: calc(88px + var(--sb)); width: min(520px, calc(100vw - 20px)); padding: 8px 12px 2px; border-radius: 20px; background: var(--glass); border: 1px solid var(--line); box-shadow: 0 14px 40px rgba(0,0,0,.45); backdrop-filter: blur(var(--blur)); -webkit-backdrop-filter: blur(var(--blur)); }
@@ -253,7 +254,7 @@ html.stage .songpage { max-width: none; padding: calc(var(--st) + 8px) 14px calc
 html.stage .sbody { line-height: 1.38; } html.stage .sbody .ln, html.stage .sbody .cr, html.stage .sbody .sec { break-inside: avoid; }
 html.stage .sbody { column-gap: 2.2em; }
 html.stage .sg .ly, html.stage .ln.plain { color: #f6f6f6; } html.stage .sg .ch, html.stage .cr .ch { color: #ffd479; background: none; } html.stage .sec { color: #9fc4ff; }
-html.stage .pdfhost { margin: 0 -14px; padding: 0 0 80px; } html.stage .pgwrap { margin-bottom: 6px; }
+html.stage .pdfhost { margin: 0 -14px; padding: 0 0 80px; } html.stage .pgcrop { margin-bottom: 4px; border-radius: 0; }
 .stagebar { position: fixed; z-index: 60; left: 50%; transform: translate(-50%, 24px); bottom: calc(14px + var(--sb)); display: flex; gap: 4px; align-items: center; padding: 6px; border-radius: 22px; background: rgba(22,24,30,.94); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 14px 40px rgba(0,0,0,.7); max-width: calc(100vw - 16px); overflow-x: auto; scrollbar-width: none; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
 .stagebar.on { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
 .stagebar .exit { display: flex; gap: 6px; align-items: center; padding: 0 14px 0 10px; color: #ff9c9c; } .stagebar .exit .ic { width: 20px; height: 20px; } .stagebar .exit span { font-size: 15px; }
