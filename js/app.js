@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '1.4.1', build: '2026-11-18' });
+const APP = Object.freeze({ name: 'Songbook', version: '1.4.2', build: '2026-11-18' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -277,7 +277,7 @@ function render() {
   let key = r.name;
   switch (r.name) {
     case 'sets': app.innerHTML = shell('sets', viewSets()); break;
-    case 'set': app.innerHTML = shell('sets', viewSetDetail(r.id)); key = 'set/' + r.id; break;
+    case 'set': app.innerHTML = shell('sets', viewSetDetail(r.id, r.q.get('hl'))); key = 'set/' + r.id; if (r.q.get('hl') != null) setTimeout(() => { const el = document.querySelector('.srow.here'); if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 80); break;
     case 'settings': app.innerHTML = shell('settings', viewSettings()); break;
     case 'trash': app.innerHTML = shell('settings', viewTrash()); break;
     case 'song': viewSong(app, r); key = 'song'; break;
@@ -376,7 +376,7 @@ async function viewSong(app, r) {
   app.innerHTML = `
   <header class="songbar glass">
     <button class="ibtn" data-act="song-back" aria-label="Back">${ico('back')}</button>
-    <div class="st"><b>${esc(song.title)}</b>${set ? `<small>${esc(set.name)} · ${idx + 1}/${set.items.length}</small>` : ''}</div>
+    <div class="st"><b>${esc(song.title)}</b>${set ? `<small><button class="setlink" data-act="song-back">${esc(set.name)} · ${idx + 1}/${set.items.length} ›</button></small>` : ''}</div>
     <button class="ibtn" data-act="share-song" aria-label="Share">${ico('share')}</button>
     <button class="ibtn" data-act="song-edit" aria-label="Edit">${ico('edit')}</button>
     <button class="ibtn" data-act="song-more" aria-label="More">${ico('more')}</button>
@@ -714,13 +714,13 @@ function viewSets() {
   return `<header class="top"><h1>All Sets</h1><div class="acts"><button class="ibtn" data-act="new-set" aria-label="New set">${ico('plus')}</button></div></header>
     ${html || `<div class="empty"><div class="eg">${ico('sets')}</div><h2>No sets yet</h2><p>A set is your song order for a service or practice.</p><button class="btn primary" data-act="new-set">${ico('plus')} New set</button></div>`}`;
 }
-function viewSetDetail(id) {
+function viewSetDetail(id, hl) {
   const set = setById(id);
   if (!set) return '<header class="top"><h1>Set not found</h1></header>';
   const rows = set.items.map((it, i) => {
     const s = songById(it.songId); if (!s || s.deleted) return '';
     const k = keyLabel(s, it);
-    return `<div class="row srow" data-i="${i}"><button class="grip" aria-label="Drag to reorder" title="Drag to reorder">${ico('grip')}</button><a class="rt" href="#/song/${encodeURIComponent(s.id)}?set=${encodeURIComponent(set.id)}&i=${i}"><span class="t"><em>${i + 1}.</em> ${esc(s.title)}</span><span class="a">${esc(s.author || '')}</span></a>
+    return `<div class="row srow${hl != null && +hl === i ? ' here' : ''}" data-i="${i}"><button class="grip" aria-label="Drag to reorder" title="Drag to reorder">${ico('grip')}</button><a class="rt" href="#/song/${encodeURIComponent(s.id)}?set=${encodeURIComponent(set.id)}&i=${i}"><span class="t"><em>${i + 1}.</em> ${esc(s.title)}</span><span class="a">${esc(s.author || '')}</span></a>
       <span class="badges">${k ? `<i class="bd key">${esc(k)}</i>` : ''}</span>
       <span class="mv"><button class="ibtn sm" data-act="item-up" data-i="${i}" aria-label="Move up">${ico('ud')}</button><button class="ibtn sm" data-act="item-down" data-i="${i}" aria-label="Move down">${ico('dd')}</button><button class="ibtn sm" data-act="item-del" data-i="${i}" aria-label="Remove">${ico('close')}</button></span></div>`;
   }).join('');
@@ -1141,7 +1141,7 @@ const A = {
   'set-dup': async (el) => { const o = setById(el.dataset.id); const n = { ...JSON.parse(JSON.stringify(o)), id: uid(), name: o.name + ' copy' }; await saveSet(n); closeSheet(); go('#/set/' + encodeURIComponent(n.id)); },
   'set-del': (el) => { const id = el.dataset.id; confirmBox('Delete this set?', 'The songs stay in your songbook. Only the set is removed.', 'Delete set', async () => { await takeSnapshot('before delete', true); await DB.del('sets', id); S.sets = S.sets.filter((s) => s.id !== id); S.dirtySnap = true; markDirty(); go('#/sets'); }, true); },
   // song view
-  'song-back': () => { const c = S.cur; if (c && c.setId && setById(c.setId)) go('#/set/' + encodeURIComponent(c.setId)); else go('#/songs'); },
+  'song-back': () => { const c = S.cur; if (c && c.setId && setById(c.setId)) go('#/set/' + encodeURIComponent(c.setId) + '?hl=' + c.idx); else go('#/songs'); },
   'song-edit': () => go('#/edit/' + encodeURIComponent(S.cur.songId)),
   'song-more': () => {
     const s = curSong();
@@ -1222,7 +1222,7 @@ async function moveItem(i, d) {
   const r = route(); const set = setById(r.id); const j = i + d;
   if (j < 0 || j >= set.items.length) return;
   [set.items[i], set.items[j]] = [set.items[j], set.items[i]];
-  await saveSet(set); render();
+  await saveSet(set); try { history.replaceState(null, '', '#/set/' + encodeURIComponent(set.id)); } catch (_) {} render();
 }
 async function fontStep(d) {
   if (X.hooks.stageFont && X.hooks.stageFont(d)) return;
@@ -1339,6 +1339,7 @@ document.addEventListener('pointerdown', (e) => {
     const hidden = set.items.map((_, i) => i).filter((i) => !seen.has(i)); // deleted songs keep their place at the end
     const next = order.concat(hidden).map((i) => set.items[i]);
     if (next.some((it, i) => it !== set.items[i])) { set.items = next; await saveSet(set); }
+    try { history.replaceState(null, '', '#/set/' + encodeURIComponent(set.id)); } catch (_) {}
     render();
   };
   document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);

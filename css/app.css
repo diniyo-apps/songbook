@@ -290,3 +290,6 @@ html.stage .setnav { display: none !important; }
 .srow.drag { opacity: .75; background: color-mix(in srgb, var(--accent) 18%, var(--card, transparent)); box-shadow: 0 8px 24px rgba(0,0,0,.4); }
 .jrow { display: flex; align-items: center; } .jrow .jgo { flex: 1; text-align: left; background: transparent; border: 0; color: inherit; font: inherit; padding: 12px 4px; }
 .jrow.cur { background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 12px; }
+
+.srow.here { background: color-mix(in srgb, var(--accent) 20%, transparent); border-radius: 12px; box-shadow: inset 3px 0 0 var(--accent); }
+.setlink { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-size: inherit; }
