@@ -296,3 +296,21 @@ html.stage .setnav { display: none !important; }
 
 .jrow.cur { background: color-mix(in srgb, var(--accent) 24%, transparent); box-shadow: inset 4px 0 0 var(--accent); border-radius: 12px; }
 .jrow.cur .t { color: var(--accent); font-weight: 800; }
+
+/* recorder */
+.dk { position: relative; } .dk .cnt { position: absolute; top: 2px; right: 4px; font-style: normal; font-size: 10px; font-weight: 800; background: var(--accent); color: #0b0f16; border-radius: 9px; min-width: 16px; padding: 0 4px; line-height: 16px; text-align: center; }
+.dk.recording { color: #ff6b6b; }
+.recdot { width: 12px; height: 12px; border-radius: 50%; background: #ff6b6b; display: inline-block; flex: none; opacity: .55; } .recdot.live { opacity: 1; animation: recpulse 1s infinite; }
+@keyframes recpulse { 50% { transform: scale(.65); opacity: .5; } }
+.recbar { position: fixed; z-index: 31; left: 50%; transform: translateX(-50%); bottom: calc(14px + var(--sb) + 66px); display: flex; align-items: center; gap: 2px; padding: 4px 6px 4px 12px; border-radius: 22px; border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(0,0,0,.4); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+body.hasnav .recbar { bottom: calc(14px + var(--sb) + 136px); }
+.recopen { display: flex; align-items: center; gap: 8px; background: none; border: 0; color: var(--text); font: inherit; font-size: 16px; padding: 6px 8px 6px 0; }
+.stopb { color: #ff6b6b; }
+.recctlbox { margin: 10px 0 14px; display: flex; justify-content: center; }
+.recgo { min-width: 180px; justify-content: center; } .recgo svg { color: #ff6b6b; }
+.recctl { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; } .recctl .rectime { font-size: 26px; font-variant-numeric: tabular-nums; min-width: 64px; }
+.reclist { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.recrow { border: 1px solid var(--line); border-radius: 16px; padding: 8px 10px; } .recrow.playing { border-color: var(--accent); }
+.rtop { display: flex; align-items: center; gap: 4px; } .rname { flex: 1; min-width: 0; display: flex; flex-direction: column; } .rname b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .rname small { opacity: .65; font-size: 12px; }
+.rseek { display: flex; align-items: center; gap: 10px; padding: 2px 4px 4px; } .recseek { flex: 1; accent-color: var(--accent); } .rectm { font-size: 12px; opacity: .7; font-variant-numeric: tabular-nums; white-space: nowrap; }
+html.stage .recbar { display: none; }

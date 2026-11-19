@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '1.4.3', build: '2026-11-18' });
+const APP = Object.freeze({ name: 'Songbook', version: '1.5.0', build: '2026-11-18' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -887,7 +887,7 @@ async function pdfKey(buf) {
   } catch (_) { return ''; }
 }
 
-const EXTRA_DROP = new Set(['NotesText', 'SbInk', 'content', 'name', 'author', 'Capo', 'KeyShift', 'Deleted', 'key', 'Id', 'ModifiedDateTime', '_tags', 'hash', 'DeepSearch', 'type']);
+const EXTRA_DROP = new Set(['NotesText', 'SbInk', 'SbRecs', 'content', 'name', 'author', 'Capo', 'KeyShift', 'Deleted', 'key', 'Id', 'ModifiedDateTime', '_tags', 'hash', 'DeepSearch', 'type']);
 async function readSbp(file) {
   const zip = await JSZip.loadAsync(file);
   const df = zip.file('dataFile.txt');
@@ -902,7 +902,7 @@ async function sbpSong(s, zip) {
   const rec = newSong({
     title: s.name || 'Untitled', author: s.author || '', shift: s.KeyShift || 0, capo: s.Capo || 0,
     fmt: isPdf ? 'pdf' : 'text', tags: safeJson(s._tags, []), deleted: s.Deleted ? now() : 0,
-    modified: Date.parse(s.ModifiedDateTime) || now(), origId: s.Id, notes: typeof s.NotesText === 'string' ? s.NotesText : '', ink: s.SbInk ? safeJson(s.SbInk, null) : null,
+    modified: Date.parse(s.ModifiedDateTime) || now(), origId: s.Id, notes: typeof s.NotesText === 'string' ? s.NotesText : '', ink: s.SbInk ? safeJson(s.SbInk, null) : null, recs: s.SbRecs ? safeJson(s.SbRecs, []) : undefined, recCount: s.SbRecCount || undefined,
   });
   rec.raw = {}; Object.keys(s).forEach((k) => { if (!EXTRA_DROP.has(k)) rec.raw[k] = s[k]; });
   if (isPdf) {
@@ -946,6 +946,11 @@ async function runImport(pack, mode) {
     byHash.set(rec.hash, rec); map.set(s.Id, rec.id); recs.push(rec);
   }
   for (const r of recs) if (r.fmt === 'pdf') { await DB.put('blobs', { id: r.pdfId, data: r._buf }); delete r._buf; }
+  for (const r of recs) if (Array.isArray(r.recs)) { // recordings travel inside the backup file
+    const ok = [];
+    for (const m of r.recs) { const f = m && m.id && zip.file('rec/' + m.id); if (!f) continue; try { await DB.put('blobs', { id: m.id, data: await f.async('arraybuffer') }); ok.push(m); } catch (_) {} }
+    r.recs = ok; if (!ok.length) { delete r.recs; delete r.recCount; }
+  }
   const sets = [];
   for (const st of data.sets || []) {
     const d = st.details || {}; if (d.Deleted) continue;
@@ -980,6 +985,7 @@ async function buildSbp() {
       const rec = await DB.get('blobs', s.pdfId);
       if (rec) zip.file('pdf/' + content, rec.data);
     }
+    for (const r of s.recs || []) { const rb = await DB.get('blobs', r.id); if (rb) zip.file('rec/' + r.id, rb.data); }
     songs.push(Object.assign({
       Id: idOf.get(s.id), author: s.author || '', Capo: s.capo || 0, content, hash: s.hash || '', key: Music.sbpIndexFromKey(s.key),
       KeyShift: s.shift || 0, name: s.title, subTitle: '', type: isPdf ? 2 : 1, ModifiedDateTime: new Date(s.modified).toISOString(), Deleted: !!s.deleted,
@@ -989,7 +995,7 @@ async function buildSbp() {
     }, s.raw || {}, {
       Id: idOf.get(s.id), author: s.author || '', Capo: s.capo || 0, content, hash: s.hash || '', key: Music.sbpIndexFromKey(s.key), KeyShift: s.shift || 0,
       name: s.title, type: isPdf ? 2 : 1, Deleted: !!s.deleted, ModifiedDateTime: new Date(s.modified).toISOString(), _tags: JSON.stringify(s.tags || []),
-      NotesText: s.notes || '', ...(s.ink && Object.keys(s.ink).length ? { SbInk: JSON.stringify(s.ink) } : {}),
+      NotesText: s.notes || '', ...(s.ink && Object.keys(s.ink).length ? { SbInk: JSON.stringify(s.ink) } : {}), ...(s.recs && s.recs.length ? { SbRecs: JSON.stringify(s.recs), SbRecCount: s.recCount || s.recs.length } : {}),
     }));
   }
   const sets = S.sets.map((st, si) => ({
@@ -1035,7 +1041,8 @@ async function restoreSnapshot(id) {
 }
 async function freeSpace() {
   const keep = new Set(S.songs.map((s) => s.pdfId).filter(Boolean));
-  (await DB.all('snaps')).forEach((sn) => sn.songs.forEach((s) => s.pdfId && keep.add(s.pdfId)));
+  S.songs.forEach((s) => (s.recs || []).forEach((r) => keep.add(r.id)));
+  (await DB.all('snaps')).forEach((sn) => sn.songs.forEach((s) => { if (s.pdfId) keep.add(s.pdfId); (s.recs || []).forEach((r) => keep.add(r.id)); }));
   const orphan = (await DB.keys('blobs')).filter((k) => !keep.has(k));
   if (orphan.length) await DB.delMany('blobs', orphan);
   toast(orphan.length ? `Freed ${orphan.length} unused file${orphan.length === 1 ? '' : 's'}` : 'Nothing to clean up');
@@ -1157,7 +1164,7 @@ const A = {
       <button class="row danger" data-act="song-trash"><span class="rt"><span class="t">Move to trash</span></span></button>`);
   },
   'song-addset': () => chooseSetSheet([S.cur.songId]),
-  'song-dup': async () => { const o = curSong(); const n = { ...o, id: uid(), title: o.title + ' copy', modified: now(), ink: o.ink ? JSON.parse(JSON.stringify(o.ink)) : null }; if (o.fmt === 'pdf') { const b = await DB.get('blobs', o.pdfId); n.pdfId = uid(); if (b) await DB.put('blobs', { id: n.pdfId, data: b.data }); } await saveSong(n); closeSheet(); toast('Duplicated'); go('#/song/' + encodeURIComponent(n.id)); },
+  'song-dup': async () => { const o = curSong(); const n = { ...o, id: uid(), title: o.title + ' copy', modified: now(), recs: o.recs ? JSON.parse(JSON.stringify(o.recs)) : undefined, ink: o.ink ? JSON.parse(JSON.stringify(o.ink)) : null }; if (o.fmt === 'pdf') { const b = await DB.get('blobs', o.pdfId); n.pdfId = uid(); if (b) await DB.put('blobs', { id: n.pdfId, data: b.data }); } await saveSong(n); closeSheet(); toast('Duplicated'); go('#/song/' + encodeURIComponent(n.id)); },
   'song-trash': () => { const s = curSong(); confirmBox('Move to trash?', `"${s.title}" can be restored any time from Settings \u25b8 Trash.`, 'Move to trash', async () => { s.deleted = now(); await saveSong(s); toast('Moved to trash'); A['song-back'](); }, true); },
   'open-key': () => openKeySheet(),
   'shift': (el) => changeHolder((s, h) => {
@@ -1320,7 +1327,7 @@ async function boot() {
   }
 }
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
-Object.assign(X, { newSong, rng, S, A, $, $$, esc, ico, IC, sheet, closeSheet, toast, confirmBox, songById, setById, live, fmtDate, now, uid, go, route, DB, download, makeCtx, keyLabel, holderOf, curSong, curHolder, paintSong, saveSong, saveSettings, applyTheme, acquireWake, releaseWake, stopScroll, startScroll, setStep, APP, copyrightLine, get sheetCtx() { return sheetCtx; }, set sheetCtx(v) { sheetCtx = v; } });
+Object.assign(X, { buildSbp, importFiles, fmtTime, newSong, rng, S, A, $, $$, esc, ico, IC, sheet, closeSheet, toast, confirmBox, songById, setById, live, fmtDate, now, uid, go, route, DB, download, makeCtx, keyLabel, holderOf, curSong, curHolder, paintSong, saveSong, saveSettings, applyTheme, acquireWake, releaseWake, stopScroll, startScroll, setStep, APP, copyrightLine, get sheetCtx() { return sheetCtx; }, set sheetCtx(v) { sheetCtx = v; } });
 
 // drag a song by its handle to reorder a set
 document.addEventListener('pointerdown', (e) => {
