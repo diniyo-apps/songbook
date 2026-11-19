@@ -117,6 +117,7 @@ function openSheet() {
   const sg = song(); if (!sg) return;
   sheet(`<div class="sh-h">Recordings</div><p class="muted small center">${esc(sg.title)}</p>
     <div class="recctlbox" id="recctl">${ctlHtml()}</div><div id="reclist" class="reclist">${rowsHtml(sg)}</div>
+    <p class="center small muted">Drag the red recording bar to move it. ${loadPos() ? '<button class="linkbtn" data-act="rec-reset">Put it back</button>' : ''}</p>
     <div class="btnrow"><button class="btn primary" data-act="close-sheet">Done</button></div>`);
   syncRows();
 }
@@ -127,12 +128,46 @@ function refresh() {
 }
 function paintBar() {
   let bar = $('#recbar');
-  if (R.state === 'idle') { if (bar) bar.remove(); return; }
-  if (!bar) { bar = document.createElement('div'); bar.id = 'recbar'; bar.className = 'recbar glass'; document.body.appendChild(bar); }
-  bar.innerHTML = `<button class="recopen" data-act="rec-open"><span class="recdot ${R.state === 'rec' ? 'live' : ''}"></span><b class="rectime">${fmtDur(elapsed())}</b></button>
+  if (R.state === 'idle') { if (bar) bar.remove(); document.body.classList.remove('hasrec'); return; }
+  if (!bar) { bar = document.createElement('div'); bar.id = 'recbar'; bar.className = 'recbar glass'; document.body.appendChild(bar); placeBar(bar); }
+  document.body.classList.add('hasrec');
+  bar.innerHTML = `<span class="recgrip" title="Drag to move">${ico('grip')}</span><button class="recopen" data-act="rec-open"><span class="recdot ${R.state === 'rec' ? 'live' : ''}"></span><b class="rectime">${fmtDur(elapsed())}</b></button>
     <button class="ibtn" data-act="${R.state === 'rec' ? 'rec-pause' : 'rec-resume'}" aria-label="${R.state === 'rec' ? 'Pause' : 'Resume'}">${ico(R.state === 'rec' ? 'pause' : 'play')}</button>
     <button class="ibtn stopb" data-act="rec-stop" aria-label="Stop and save">${ico('stop')}</button>`;
 }
+// the bar can be dragged anywhere; the spot is remembered (as a share of the screen, so it survives rotation)
+const POS_KEY = 'sb-recbar-pos';
+function loadPos() { try { const v = JSON.parse(localStorage.getItem(POS_KEY) || 'null'); return v && typeof v.x === 'number' ? v : null; } catch (_) { return null; } }
+function savePos(v) { try { if (v) localStorage.setItem(POS_KEY, JSON.stringify(v)); else localStorage.removeItem(POS_KEY); } catch (_) {} }
+function placeBar(bar) {
+  const v = loadPos(); if (!bar) return;
+  if (!v) { bar.style.left = bar.style.top = bar.style.bottom = bar.style.transform = ''; return; }
+  const w = bar.offsetWidth, h = bar.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
+  bar.style.transform = 'none'; bar.style.bottom = 'auto';
+  bar.style.left = Math.round(Math.max(6, Math.min(vw - w - 6, v.x * (vw - w)))) + 'px';
+  bar.style.top = Math.round(Math.max(6, Math.min(vh - h - 6, v.y * (vh - h)))) + 'px';
+}
+let drag = null, noClick = false;
+document.addEventListener('pointerdown', (e) => {
+  const bar = e.target.closest && e.target.closest('#recbar'); if (!bar) return;
+  if (e.target.closest('.ibtn')) return;
+  const r = bar.getBoundingClientRect(); drag = { bar, dx: e.clientX - r.left, dy: e.clientY - r.top, x0: e.clientX, y0: e.clientY, on: false, id: e.pointerId };
+});
+document.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  if (!drag.on && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 8) return;
+  if (!drag.on) { drag.on = true; try { drag.bar.setPointerCapture(drag.id); } catch (_) {} }
+  e.preventDefault();
+  const b = drag.bar, w = b.offsetWidth, h = b.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
+  const x = Math.max(6, Math.min(vw - w - 6, e.clientX - drag.dx)), y = Math.max(6, Math.min(vh - h - 6, e.clientY - drag.dy));
+  b.style.transform = 'none'; b.style.bottom = 'auto'; b.style.left = x + 'px'; b.style.top = y + 'px';
+  drag.pos = { x: vw - w > 0 ? x / (vw - w) : 0, y: vh - h > 0 ? y / (vh - h) : 0 };
+}, { passive: false });
+const endDrag = () => { if (drag && drag.on && drag.pos) { savePos(drag.pos); noClick = true; setTimeout(() => { noClick = false; }, 350); } drag = null; };
+document.addEventListener('pointerup', endDrag); document.addEventListener('pointercancel', endDrag);
+document.addEventListener('click', (e) => { if (noClick && e.target.closest && e.target.closest('#recbar')) { e.stopPropagation(); e.preventDefault(); } }, true);
+window.addEventListener('resize', () => placeBar($('#recbar')));
+
 function paintButton() {
   const dock = $('#dock'); if (!dock) return;
   let b = dock.querySelector('[data-act="rec-open"]');
@@ -147,6 +182,7 @@ X.hooks.paintSong = (s, h) => { if (prevPaint) prevPaint(s, h); paintButton(); p
 
 Object.assign(A, {
   'rec-open': () => openSheet(),
+  'rec-reset': () => { savePos(null); placeBar($('#recbar')); openSheet(); toast('Recording bar is back in its usual place'); },
   'rec-start': () => start(), 'rec-pause': () => pause(), 'rec-resume': () => resume(), 'rec-stop': () => stop(),
   'rec-play': (el) => play(el.dataset.id),
   'rec-rename': (el) => {

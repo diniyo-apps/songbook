@@ -314,3 +314,11 @@ body.hasnav .recbar { bottom: calc(14px + var(--sb) + 136px); }
 .rtop { display: flex; align-items: center; gap: 4px; } .rname { flex: 1; min-width: 0; display: flex; flex-direction: column; } .rname b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .rname small { opacity: .65; font-size: 12px; }
 .rseek { display: flex; align-items: center; gap: 10px; padding: 2px 4px 4px; } .recseek { flex: 1; accent-color: var(--accent); } .rectm { font-size: 12px; opacity: .7; font-variant-numeric: tabular-nums; white-space: nowrap; }
 html.stage .recbar { display: none; }
+
+.recbar { touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.recgrip { display: grid; place-items: center; width: 22px; opacity: .55; margin-left: -6px; } .recgrip svg { width: 18px; height: 18px; }
+/* leave room under the last line so the bars never cover text when you scroll to the end */
+body.hasrec .songpage { padding-bottom: calc(150px + var(--sb)); }
+body.hasrec.hasnav .songpage { padding-bottom: calc(262px + var(--sb)); }
+
+.linkbtn { background: none; border: 0; color: var(--accent); font: inherit; text-decoration: underline; padding: 4px; }
