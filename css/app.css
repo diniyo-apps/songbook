@@ -322,3 +322,7 @@ body.hasrec .songpage { padding-bottom: calc(150px + var(--sb)); }
 body.hasrec.hasnav .songpage { padding-bottom: calc(262px + var(--sb)); }
 
 .linkbtn { background: none; border: 0; color: var(--accent); font: inherit; text-decoration: underline; padding: 4px; }
+.recgroup { margin-bottom: 14px; } .recgroup .recrow { margin-bottom: 8px; }
+.rghead { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 4px 8px; } .rghead a:first-child { display: flex; flex-direction: column; color: var(--text); min-width: 0; } .rghead b { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .rghead small { opacity: .65; }
+.rghead .btn.sm { padding: 8px 12px; font-size: 13px; min-height: 0; flex: none; }
+.chips { display: flex; gap: 8px; overflow-x: auto; }

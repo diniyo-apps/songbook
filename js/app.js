@@ -30,7 +30,7 @@ const IC = {
   play: '<path d="M8 5l11 7-11 7z" fill="currentColor"/>', pause: '<path d="M8 5v14M16 5v14"/>',
   music: '<path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="16" r="2"/>',
   sets: '<path d="M4 6h16M4 12h16M4 18h10"/>', gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>',
-  chev: '<path d="M9 5l7 7-7 7"/>', ud: '<path d="M6 14l6-6 6 6"/>', grip: '<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="3"/>', dd: '<path d="M6 10l6 6 6-6"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/>', chev: '<path d="M9 5l7 7-7 7"/>', ud: '<path d="M6 14l6-6 6 6"/>', grip: '<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="3"/>', dd: '<path d="M6 10l6 6 6-6"/>',
   shield: '<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
   select: '<path d="M4 7l2 2 3-3M4 16l2 2 3-3M13 7h7M13 17h7"/>', copy: '<rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15V6a1 1 0 011-1h9"/>',
   stage: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>', pen: '<path d="M4 20l1-4L16.5 4.5a2 2 0 013 3L8 19l-4 1z"/>', undo: '<path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/>',
@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '1.5.1', build: '2026-11-18' });
+const APP = Object.freeze({ name: 'Songbook', version: '1.6.0', build: '2026-11-18' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -278,6 +278,7 @@ function render() {
   switch (r.name) {
     case 'sets': app.innerHTML = shell('sets', viewSets()); break;
     case 'set': app.innerHTML = shell('sets', viewSetDetail(r.id, r.q.get('hl'))); key = 'set/' + r.id; if (r.q.get('hl') != null) setTimeout(() => { const el = document.querySelector('.srow.here'); if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 80); break;
+    case 'recordings': app.innerHTML = shell('rec', X.hooks.viewRecordings ? X.hooks.viewRecordings(r.q.get('set')) : ''); key = 'recordings'; break;
     case 'settings': app.innerHTML = shell('settings', viewSettings()); break;
     case 'trash': app.innerHTML = shell('settings', viewTrash()); break;
     case 'song': viewSong(app, r); key = 'song'; break;
@@ -291,7 +292,7 @@ function render() {
 }
 function shell(tab, inner) {
   const t = (id, label, icon, href) => `<a class="tab ${tab === id ? 'on' : ''}" href="${href}">${ico(icon)}<span>${label}</span></a>`;
-  return `<div class="page">${inner}</div><nav class="tabbar">${t('songs', 'Songs', 'music', '#/songs')}${t('sets', 'Sets', 'sets', '#/sets')}${t('settings', 'Settings', 'gear', '#/settings')}</nav>`;
+  return `<div class="page">${inner}</div><nav class="tabbar">${t('songs', 'Songs', 'music', '#/songs')}${t('sets', 'Sets', 'sets', '#/sets')}${t('rec', 'Recordings', 'mic', '#/recordings')}${t('settings', 'Settings', 'gear', '#/settings')}</nav>`;
 }
 
 // ───────────────────────── Songs list ─────────────────────────
@@ -1327,7 +1328,7 @@ async function boot() {
   }
 }
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
-Object.assign(X, { buildSbp, importFiles, fmtTime, newSong, rng, S, A, $, $$, esc, ico, IC, sheet, closeSheet, toast, confirmBox, songById, setById, live, fmtDate, now, uid, go, route, DB, download, makeCtx, keyLabel, holderOf, curSong, curHolder, paintSong, saveSong, saveSettings, applyTheme, acquireWake, releaseWake, stopScroll, startScroll, setStep, APP, copyrightLine, get sheetCtx() { return sheetCtx; }, set sheetCtx(v) { sheetCtx = v; } });
+Object.assign(X, { render, buildSbp, importFiles, fmtTime, newSong, rng, S, A, $, $$, esc, ico, IC, sheet, closeSheet, toast, confirmBox, songById, setById, live, fmtDate, now, uid, go, route, DB, download, makeCtx, keyLabel, holderOf, curSong, curHolder, paintSong, saveSong, saveSettings, applyTheme, acquireWake, releaseWake, stopScroll, startScroll, setStep, APP, copyrightLine, get sheetCtx() { return sheetCtx; }, set sheetCtx(v) { sheetCtx = v; } });
 
 // drag a song by its handle to reorder a set
 document.addEventListener('pointerdown', (e) => {
