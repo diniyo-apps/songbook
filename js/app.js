@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '2.7.0', build: '2026-11-20' });
+const APP = Object.freeze({ name: 'Songbook', version: '2.8.0', build: '2026-11-20' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -367,7 +367,7 @@ function renderList() {
 function renderSelbar() {
   const b = $('#selbar'); if (!b) return;
   const sel = S.ui.select;
-  b.innerHTML = sel ? `<div class="selbar"><span>${sel.size} selected</span><button class="btn sm" data-act="select-all">All</button><button class="btn primary sm" data-act="add-to-set" ${sel.size ? '' : 'disabled'}>Add to set…</button><button class="btn sm" data-act="toggle-select">Done</button></div>` : '';
+  b.innerHTML = sel ? `<div class="selbar"><span>${sel.size} selected</span><button class="btn sm" data-act="select-all">All</button><button class="btn primary sm" data-act="add-to-set" ${sel.size ? '' : 'disabled'}>Add to set…</button><button class="btn sm" data-act="sel-more" ${sel.size ? '' : 'disabled'}>More…</button><button class="btn sm" data-act="toggle-select">Done</button></div>` : '';
 }
 
 // ───────────────────────── Song view ─────────────────────────
@@ -1145,6 +1145,20 @@ const A = {
   'filter': (el) => { S.ui.filter = el.dataset.v; $$('.filters .seg button').forEach((b) => b.classList.toggle('on', b === el)); renderList(); },
   'backup-now': () => backupNow(),
   'add-to-set': () => chooseSetSheet([...S.ui.select]),
+  'sel-more': () => {
+    const ids = [...(S.ui.select || [])]; if (!ids.length) return;
+    sheet(`<div class="sh-h">${ids.length} song${ids.length === 1 ? '' : 's'} selected</div>
+      ${X.hooks.selMenu ? X.hooks.selMenu(ids) : ''}
+      <button class="row danger" data-act="sel-trash"><span class="rt"><span class="t">Move to trash</span><span class="a">Only on this phone. Restore any time from Settings \u25b8 Trash.</span></span></button>`);
+  },
+  'sel-trash': () => {
+    const ids = [...(S.ui.select || [])]; closeSheet();
+    confirmBox(`Move ${ids.length} song${ids.length === 1 ? '' : 's'} to trash?`, 'They can be restored any time from Settings \u25b8 Trash. Shared songs stay in the shared library for everyone else.', 'Move to trash', async () => {
+      await takeSnapshot('before bulk trash', true);
+      for (const id of ids) { const s = songById(id); if (s && !s.deleted) { s.deleted = now(); await saveSong(s); } }
+      S.ui.select = null; render(); toast(`${ids.length} moved to trash`);
+    }, true);
+  },
   'add-to': async (el) => { const ids = sheetCtx.ids; closeSheet(); await addSongsToSet(el.dataset.id, ids); S.ui.select = null; render(); },
   'new-set-with': () => newSetSheet(sheetCtx.ids),
   'new-set': () => newSetSheet(null),

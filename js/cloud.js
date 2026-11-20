@@ -335,6 +335,37 @@
     }
     return h;
   };
+  /* ----- bulk actions on selected songs (leads) ----- */
+  const selSongs = () => [...(S.ui.select || [])].map((id) => songById(id)).filter((s) => s && !s.deleted);
+  H.selMenu = (ids) => {
+    if (!active() || !isLead()) return '';
+    const ss = ids.map((id) => songById(id)).filter(Boolean);
+    const newOnes = ss.filter((s) => !s.cloud || (edited(s) && !s.cloud.incoming)).length;
+    const linked = ss.filter((s) => s.cloud && isLead(s.cloud.team));
+    const hidden = linked.filter((s) => s.cloud.hidden).length;
+    let h = '';
+    if (newOnes) h += row('cl-sel-share', 'Add to shared library (' + newOnes + ')', 'New and changed songs go to the team');
+    if (linked.length - hidden) h += row('cl-sel-hide', 'Hide from everyone (' + (linked.length - hidden) + ')', 'You can show them again later');
+    if (hidden) h += row('cl-sel-show', 'Show to everyone again (' + hidden + ')');
+    if (linked.length) h += row('cl-sel-del', 'Delete for everyone (' + linked.length + ')', 'Removed from every member\u2019s phone', 'danger');
+    return h;
+  };
+  async function bulk(list, fn, label) {
+    if (pubBusy) { toast('Please wait, another job is running'); return; }
+    pubBusy = true; let ok = 0, bad = 0;
+    for (let i = 0; i < list.length; i++) { toast(label + ' ' + (i + 1) + ' of ' + list.length + '\u2026', 1500); try { await fn(list[i]); ok++; } catch (e) { bad++; if (e.offline) break; } }
+    pubBusy = false; S.ui.select = null; toast(`${label} done: ${ok}${bad ? ', ' + bad + ' failed' : ''}`, 5000); X.render();
+  }
+  A['cl-sel-share'] = async () => {
+    closeSheet(); const list = selSongs().filter((s) => !s.cloud || (edited(s) && !s.cloud.incoming)); const tm = await pickShareTeam(); if (!tm) return;
+    confirmBox('Share ' + list.length + ' song' + (list.length === 1 ? '' : 's') + '?', 'They will be added to ' + teamName(tm) + ' for everyone.', 'Share', () => bulk(list, (s) => publishSong(s, tm), 'Sharing'));
+  };
+  A['cl-sel-hide'] = () => { closeSheet(); const list = selSongs().filter((s) => s.cloud && isLead(s.cloud.team) && !s.cloud.hidden);
+    confirmBox('Hide ' + list.length + ' song' + (list.length === 1 ? '' : 's') + ' from everyone?', 'Members will no longer see them. You can show them again any time.', 'Hide', () => bulk(list, async (s) => { await patchSong(s, { hidden: true }); s.cloud.hidden = true; await putSong(s); }, 'Hiding')); };
+  A['cl-sel-show'] = () => { closeSheet(); const list = selSongs().filter((s) => s.cloud && isLead(s.cloud.team) && s.cloud.hidden);
+    confirmBox('Show ' + list.length + ' song' + (list.length === 1 ? '' : 's') + ' to everyone again?', 'Members will get them on their next sync.', 'Show', () => bulk(list, async (s) => { await patchSong(s, { hidden: false }); s.cloud.hidden = false; await putSong(s); }, 'Showing')); };
+  A['cl-sel-del'] = () => { closeSheet(); const list = selSongs().filter((s) => s.cloud && isLead(s.cloud.team));
+    confirmBox('Delete ' + list.length + ' song' + (list.length === 1 ? '' : 's') + ' for everyone?', 'They will be removed from every member\u2019s phone. Earlier versions are kept on the server. This cannot be undone from the app.', 'Delete for everyone', async () => { await X.takeSnapshot('before bulk delete for everyone', true); bulk(list, async (s) => { await patchSong(s, { deleted: true }); s.deleted = now(); await putSong(s); }, 'Deleting'); }, true); };
   H.setMenu = (set) => {
     if (!active() || !set) return '';
     let h = '';
