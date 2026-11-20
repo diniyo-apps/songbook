@@ -1,8 +1,8 @@
 /* Offline cache. Bump VERSION when any file changes so phones pick up the update. */
-const VERSION = 'songbook-v2.6.0';
+const VERSION = 'songbook-v2.7.0';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/app.js', 'js/pro.js', 'js/rec.js', 'js/cloud.js', 'js/music.js', 'js/chords.js', 'js/db.js', 'js/md5.js',
+  'js/app.js', 'js/pro.js', 'js/rec.js', 'js/cloud.js', 'js/paste.js', 'js/music.js', 'js/chords.js', 'js/db.js', 'js/md5.js',
   'lib/jszip.min.js', 'lib/pdf.min.js', 'lib/pdf.worker.min.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png',
 ];

@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '2.6.0', build: '2026-11-20' });
+const APP = Object.freeze({ name: 'Songbook', version: '2.7.0', build: '2026-11-20' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -681,6 +681,7 @@ function viewEdit(app, r) {
     <div class="field"><label>Original key</label><select id="e-key">${keyOpts(song.key)}</select></div></div>
     <div class="field"><label>Notes</label><textarea id="e-notes" class="notes" rows="3" placeholder="e.g. Start soft, build on the bridge, drums out on verse 2">${esc(song.notes || '')}</textarea></div>
     ${pdf ? '<p class="muted small">This song is a PDF picture. You can change its title, artist, key and notes. Use the Pen on the song page to write on it.</p>' : `
+    ${X.hooks.editTools ? X.hooks.editTools(song) : ''}
     <div class="chiprow" id="chips"></div>
     <textarea id="e-body" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" placeholder="Write lyrics here.&#10;Put chords in brackets, like [G]Amazing [C]grace&#10;or on the line above the words, or use Nashville numbers (1 4 5 6m).">${esc(body)}</textarea>
     <div id="e-prev" class="sbody preview" hidden></div>`}
@@ -1354,7 +1355,7 @@ async function boot() {
   }
 }
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
-Object.assign(X, { takeSnapshot, saveSet, markDirty, render, buildSbp, importFiles, fmtTime, newSong, rng, S, A, $, $$, esc, ico, IC, sheet, closeSheet, toast, confirmBox, songById, setById, live, fmtDate, now, uid, go, route, DB, download, makeCtx, keyLabel, holderOf, curSong, curHolder, paintSong, saveSong, saveSettings, applyTheme, acquireWake, releaseWake, stopScroll, startScroll, setStep, APP, copyrightLine, get sheetCtx() { return sheetCtx; }, set sheetCtx(v) { sheetCtx = v; } });
+Object.assign(X, { renderBody, takeSnapshot, saveSet, markDirty, render, buildSbp, importFiles, fmtTime, newSong, rng, S, A, $, $$, esc, ico, IC, sheet, closeSheet, toast, confirmBox, songById, setById, live, fmtDate, now, uid, go, route, DB, download, makeCtx, keyLabel, holderOf, curSong, curHolder, paintSong, saveSong, saveSettings, applyTheme, acquireWake, releaseWake, stopScroll, startScroll, setStep, APP, copyrightLine, get sheetCtx() { return sheetCtx; }, set sheetCtx(v) { sheetCtx = v; } });
 
 // drag a song by its handle to reorder a set
 document.addEventListener('pointerdown', (e) => {
