@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '2.3.0', build: '2026-11-20' });
+const APP = Object.freeze({ name: 'Songbook', version: '2.3.1', build: '2026-11-20' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -772,6 +772,7 @@ async function addSongsToSet(setId, ids) {
 
 // ───────────────────────── Settings / safety ─────────────────────────
 function viewSettings() {
+  S.ui.acc = S.ui.acc || {};
   const p = protection(); const st = S.settings;
   return `<header class="top"><h1>Settings</h1></header>
   ${X.hooks.settingsCloud ? X.hooks.settingsCloud() : ''}
@@ -784,7 +785,7 @@ function viewSettings() {
   </section>
   <section class="card"><h3>Automatic safety copies</h3><p class="small muted">The app quietly keeps recent copies of your whole library on this device and one more before anything risky (import, restore, delete forever).</p><div id="snaplist" class="snaplist"></div></section>
   <section class="card"><h3>Trash</h3><a class="row" href="#/trash"><span class="rt"><span class="t">Deleted songs</span><span class="a">${trashed().length} in trash — restore any time</span></span>${ico('chev', 'dim')}</a></section>
-  <section class="card"><h3>Appearance</h3>
+  <details class="card acc" data-acc="appearance" ${S.ui.acc['appearance'] ? 'open' : ''}><summary><span><h3>Appearance</h3><span class="accsub">Theme, colours, background picture</span></span><i class="accarrow">${ico('chev')}</i></summary>
     <div class="kv"><label>Style</label><div class="seg"><button class="${st.style !== 'glass' ? 'on' : ''}" data-act="style" data-v="solid">Solid</button><button class="${st.style === 'glass' ? 'on' : ''}" data-act="style" data-v="glass">Glass</button></div></div>
     ${st.style === 'glass' ? `${rng('Transparency', 'glassT', 0, 100, st.glassT)}${rng('Blur', 'glassBlur', 0, 100, st.glassBlur)}` : '<p class="small muted pad0">Glass makes menus, cards and bars see-through, so your background shows through.</p>'}
     <div class="swatches">${PRESETS.map((p) => `<button class="swatch ${st.theme === p.id ? 'on' : ''}" data-act="preset" data-v="${p.id}" style="--b:${p.bg};--a:${p.accent};--c:${p.chord}"><i></i><span>${p.name}</span></button>`).join('')}</div>
@@ -794,15 +795,15 @@ function viewSettings() {
     ${colorSliders('bg', 'Background')}${colorSliders('accent', 'Highlights and buttons')}${colorSliders('chord', 'Chords')}
     <div class="kv"><label>Soften colours for the eyes</label><button class="sw ${st.soften !== false ? 'on' : ''}" data-act="sw" data-k="soften" aria-label="toggle"></button></div>
     <p class="small muted pad0">Softening keeps backgrounds dark and highlights gentle. Turn it off to use the full colour range.</p>
-  </section>
-  <section class="card"><h3>Display</h3>
+  </details>
+  <details class="card acc" data-acc="display" ${S.ui.acc['display'] ? 'open' : ''}><summary><span><h3>Display</h3><span class="accsub">Text size, chords, PDFs, scrolling</span></span><i class="accarrow">${ico('chev')}</i></summary>
     ${rng('Text size', 'fontPct', 68, 179, Math.round(st.fontSize / 19 * 100))}
     <div class="kv"><label>Chords as</label><div class="seg"><button class="${st.mode === 'letters' ? 'on' : ''}" data-act="mode" data-m="letters">Letters</button><button class="${st.mode === 'numbers' ? 'on' : ''}" data-act="mode" data-m="numbers">Numbers</button></div></div>
     <div class="kv"><label>Change chords inside PDFs with the key</label><button class="sw ${st.pdfSmart !== false ? 'on' : ''}" data-act="sw" data-k="pdfSmart" aria-label="toggle"></button></div>
     <div class="kv"><label>Dim PDFs for dark mode</label><button class="sw ${st.invertPdf ? 'on' : ''}" data-act="sw" data-k="invertPdf" aria-label="toggle"></button></div>
     <div class="kv"><label>Keep screen awake</label><button class="sw ${st.wake ? 'on' : ''}" data-act="sw" data-k="wake" aria-label="toggle"></button></div>
     ${rng('Auto-scroll speed', 'speedPct', 20, 100, st.scrollSpeed * 20, { step: 20 })}
-  </section>
+  </details>
   <section class="card"><h3>Storage</h3><div class="btnrow tight"><button class="btn" data-act="free-space">Free up space</button><button class="btn" data-act="check-update">Check for update</button></div><p class="small muted">Works fully offline. Bluetooth page-turner pedals work (Page Up / Page Down).</p></section>
   ${aboutCard()}`;
 }
@@ -1365,3 +1366,5 @@ window.SBX = X;
 window.SB = { S, A, render, saveSong }; // handy for debugging/tests
 boot();
 })();
+
+document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.matches && d.matches('details[data-acc]') && window.SBX) { const u = window.SBX.S.ui; u.acc = u.acc || {}; u.acc[d.dataset.acc] = d.open; } }, true);

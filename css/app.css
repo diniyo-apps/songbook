@@ -351,3 +351,14 @@ body.hasrec.hasnav .songpage { padding-bottom: calc(262px + var(--sb)); }
 .cl-info b { color: var(--text); font-weight: 600; } .cl-info span { color: var(--muted); }
 .bd.cloud { background: rgba(134,180,245,.12); color: var(--accent); padding: 3px 7px; }
 .wherebar { margin: 0 0 10px; } .wherebar .seg { width: 100%; } .wherebar .seg button { flex: 1; padding: 7px 4px; font-size: 13.5px; }
+
+/* settings accordions */
+details.acc > summary { list-style: none; display: flex; align-items: center; gap: 10px; cursor: pointer; min-height: 44px; }
+details.acc > summary::-webkit-details-marker { display: none; }
+details.acc > summary > span { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+details.acc > summary h3 { margin: 0; }
+.accsub { font-size: 13px; color: var(--muted); }
+.accarrow { display: grid; place-items: center; color: var(--muted); transition: transform .2s; }
+details.acc[open] > summary .accarrow { transform: rotate(90deg); }
+details.acc[open] > summary { margin-bottom: 8px; }
+input.rng, .rngrow input[type=range] { touch-action: pan-y; }
