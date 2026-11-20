@@ -124,7 +124,7 @@
         const part = await api('/rest/v1/cloud_songs?id=in.(' + need.slice(i, i + 30).join(',') + ')&select=id,team_id,data,pdf_path,version,hidden,deleted,updated_at');
         part.forEach((p) => data.set(p.id, p));
       }
-      if (need.length || S.songs.some((s) => s.cloud && !remote.has(s.cloud.id))) { await X.takeSnapshot('before shared update', true); take = true; }
+      if (need.length || S.songs.some((s) => s.cloud && !remote.has(s.cloud.id))) { if (now() - (S.meta.lastSnap || 0) > 6 * 3600 * 1000) await X.takeSnapshot('before shared update', true); take = true; }
       let added = 0, updated = 0, removed = 0, pdfDone = 0;
       for (const id of need) {
         const r = data.get(id); if (!r) continue;
