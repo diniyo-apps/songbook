@@ -355,14 +355,20 @@
   A['cl-out'] = () => confirmBox('Sign out?', 'The songs stay on this phone. You will stop getting shared updates until you sign in again.', 'Sign out', () => { dropSession(); X.render(); toast('Signed out'); });
   A['cl-pw'] = () => sheet(`<div class="sh-h">Change password</div><div class="field"><label>New password (8 or more characters)</label><input id="npw" type="password" autocomplete="new-password"></div><div class="btnrow"><button class="btn" data-act="close-sheet">Cancel</button><button class="btn primary" data-act="cl-pw-go">Save</button></div>`);
   A['cl-pw-go'] = async () => { const v = $('#npw').value; if (v.length < 8) { toast('Use at least 8 characters'); return; } try { await api('/auth/v1/user', { method: 'PUT', json: { password: v } }); closeSheet(); toast('Password changed'); } catch (e) { toast(e.message, 4000); } };
-  A['cl-pub-all'] = () => {
+  let pubBusy = false;
+  A['cl-pub-all'] = async () => {
+    if (pubBusy) { toast('Already sharing…'); return; }
+    pubBusy = true; toast('Checking the shared library first…', 2000);
+    try { await sync(false); } catch (e) {}
+    pubBusy = false;
     const list = live().filter((s) => !s.cloud);
     const ed = live().filter((s) => edited(s) && !s.cloud.incoming);
     if (!list.length && !ed.length) { toast('Nothing new to share'); return; }
     confirmBox('Share with the whole team?', `${list.length} new song${list.length === 1 ? '' : 's'}${ed.length ? ' and ' + ed.length + ' changed' : ''} will be added to the shared library for everyone. This takes a few minutes for many PDFs.`, 'Share', async () => {
+      if (pubBusy) return; pubBusy = true;
       let ok = 0, bad = 0; const all = list.concat(ed);
       for (let i = 0; i < all.length; i++) { toast('Sharing ' + (i + 1) + ' of ' + all.length + '…', 1500); try { await publishSong(all[i]); ok++; } catch (e) { bad++; if (e.offline) break; } }
-      toast(`Shared ${ok}${bad ? ', ' + bad + ' failed' : ''}`, 5000); X.render();
+      pubBusy = false; toast(`Shared ${ok}${bad ? ', ' + bad + ' failed' : ''}`, 5000); X.render();
     });
   };
 
