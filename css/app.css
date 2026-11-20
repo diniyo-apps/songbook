@@ -328,10 +328,20 @@ body.hasrec.hasnav .songpage { padding-bottom: calc(262px + var(--sb)); }
 .chips { display: flex; gap: 8px; overflow-x: auto; }
 
 /* cloud */
-.gate { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 18px; background: var(--bg); overflow: auto; }
-.gatecard { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 6px; }
-.gatecard h2 { margin: 0; font-size: 30px; letter-spacing: -.02em; }
-.gatecard .seg { align-self: flex-start; margin: 8px 0; }
+.gate { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: calc(var(--st) + 18px) 18px calc(var(--sb) + 18px); background: #080b12; overflow: auto; }
+.gateglow { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(520px 420px at 50% 8%, rgba(134,180,245,.30), transparent 65%), radial-gradient(480px 380px at 90% 100%, rgba(232,196,142,.16), transparent 62%), radial-gradient(420px 360px at 0% 70%, rgba(120,90,200,.14), transparent 60%); animation: gglow 9s ease-in-out infinite alternate; }
+@keyframes gglow { to { transform: scale(1.08) translateY(-10px); opacity: .85; } }
+.gatecard { position: relative; width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 18px; margin: auto; }
+.gatelogo { text-align: center; }
+.gatelogo img { width: 92px; height: 92px; border-radius: 24px; box-shadow: 0 0 0 1px rgba(255,255,255,.1), 0 14px 40px rgba(0,0,0,.55), 0 0 60px rgba(134,180,245,.35); animation: gfloat 5s ease-in-out infinite; }
+@keyframes gfloat { 50% { transform: translateY(-5px); } }
+.gatelogo h1 { margin: 14px 0 2px; font-size: 34px; letter-spacing: -.03em; background: linear-gradient(90deg, #fff, var(--chord)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.gatelogo p { margin: 0; color: var(--text2); font-size: 15px; }
+.gatepanel { display: flex; flex-direction: column; gap: 6px; padding: 22px 20px 16px; border-radius: 24px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+.gatepanel h2 { margin: 0; font-size: 22px; letter-spacing: -.01em; }
+.gatepanel > p { margin: 0 0 4px; }
+.gatepanel .seg { align-self: stretch; margin: 10px 0 4px; } .gatepanel .seg button { flex: 1; }
+.gatepanel .btn.primary { padding: 14px; font-size: 16px; box-shadow: 0 8px 24px rgba(134,180,245,.3); }
 .btn.wide { width: 100%; }
 .linkbtn { color: var(--accent); padding: 12px 0; font-size: 15px; text-align: center; }
 .bd.warn { background: rgba(232,179,107,.18); color: var(--warn); }

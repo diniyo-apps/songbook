@@ -379,7 +379,7 @@
         <button class="btn" data-act="cl-skip">Use the app on this phone for now</button><button class="linkbtn" data-act="cl-out2">Sign out</button>`;
     } else {
       const up = mode === 'up';
-      inner = `<h2>Songbook</h2><p class="muted">Sign in to get the team’s shared songs. Your own changes always stay on this phone.</p>
+      inner = `<h2>${up ? 'Create your account' : 'Welcome back'}</h2><p class="muted">${up ? 'Join your team to get the shared songs.' : 'Sign in to get the team’s shared songs. Your own changes always stay on this phone.'}</p>
         <div class="seg"><button class="${up ? '' : 'on'}" data-act="cl-gate-mode" data-m="in">Sign in</button><button class="${up ? 'on' : ''}" data-act="cl-gate-mode" data-m="up">Create account</button></div>
         ${up ? '<div class="field"><label>Your name</label><input id="gname" autocomplete="name"></div>' : ''}
         <div class="field"><label>Email</label><input id="gmail" type="email" autocomplete="email" autocapitalize="off"></div>
@@ -389,7 +389,7 @@
         ${up ? '<p class="small muted">New accounts are approved by an admin before the shared songs appear.</p>' : ''}
         <button class="linkbtn" data-act="cl-skip">Continue without an account</button>`;
     }
-    g.innerHTML = `<div class="gatecard">${inner}</div>`;
+    g.innerHTML = `<div class="gateglow"></div><div class="gatecard"><div class="gatelogo"><img src="icons/icon-192.png" alt=""><h1>Songbook</h1><p>Your worship library, always with you</p></div><div class="gatepanel">${inner}</div></div>`;
   }
   A['cl-open-gate'] = () => openGate('in');
   A['cl-gate-mode'] = (el) => { C.msg = ''; openGate(el.dataset.m); };
