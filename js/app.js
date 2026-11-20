@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '1.6.0', build: '2026-11-18' });
+const APP = Object.freeze({ name: 'Songbook', version: '2.0.0', build: '2026-11-20' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -279,6 +279,7 @@ function render() {
     case 'sets': app.innerHTML = shell('sets', viewSets()); break;
     case 'set': app.innerHTML = shell('sets', viewSetDetail(r.id, r.q.get('hl'))); key = 'set/' + r.id; if (r.q.get('hl') != null) setTimeout(() => { const el = document.querySelector('.srow.here'); if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 80); break;
     case 'recordings': app.innerHTML = shell('rec', X.hooks.viewRecordings ? X.hooks.viewRecordings(r.q.get('set')) : ''); key = 'recordings'; break;
+    case 'admin': app.innerHTML = shell('settings', X.hooks.viewAdmin ? X.hooks.viewAdmin() : ''); break;
     case 'settings': app.innerHTML = shell('settings', viewSettings()); break;
     case 'trash': app.innerHTML = shell('settings', viewTrash()); break;
     case 'song': viewSong(app, r); key = 'song'; break;
@@ -352,7 +353,7 @@ function renderList() {
     html += `<a class="row ${checked ? 'sel' : ''}" href="#/song/${encodeURIComponent(s.id)}" data-id="${esc(s.id)}">
       ${S.ui.select ? `<span class="cb ${checked ? 'on' : ''}">${checked ? ico('check') : ''}</span>` : ''}
       <span class="rt"><span class="t">${esc(s.title || 'Untitled')}</span><span class="a">${esc(s.author || '')}</span></span>
-      <span class="badges">${s.fmt === 'pdf' ? '<i class="bd">PDF</i>' : ''}${k ? `<i class="bd key">${esc(k)}</i>` : ''}</span></a>`;
+      <span class="badges">${s.fmt === 'pdf' ? '<i class="bd">PDF</i>' : ''}${k ? `<i class="bd key">${esc(k)}</i>` : ''}${X.hooks.rowTag ? X.hooks.rowTag(s) : ''}</span></a>`;
   }
   box.innerHTML = html + `<p class="muted center small pad">${arr.length} song${arr.length === 1 ? '' : 's'}</p>`;
   renderSelbar();
@@ -771,6 +772,7 @@ async function addSongsToSet(setId, ids) {
 function viewSettings() {
   const p = protection(); const st = S.settings;
   return `<header class="top"><h1>Settings</h1></header>
+  ${X.hooks.settingsCloud ? X.hooks.settingsCloud() : ''}
   <section class="card safety ${p.ok ? 'ok' : 'warn'}">
     <div class="sh">${ico('shield')}<div><b>${p.label}</b><span>${esc(p.note)}</span></div></div>
     <div class="stats"><div><b>${live().length}</b><span>songs</span></div><div><b>${S.sets.length}</b><span>sets</span></div><div><b id="usage">…</b><span>stored</span></div></div>
@@ -1144,6 +1146,7 @@ const A = {
   'set-more': (el) => {
     sheet(`<div class="sh-h">Set</div><button class="row" data-act="share-set" data-id="${esc(el.dataset.id)}"><span class="rt"><span class="t">Share to the band…</span></span></button><button class="row" data-act="set-rename" data-id="${esc(el.dataset.id)}"><span class="rt"><span class="t">Rename</span></span></button>
       <button class="row" data-act="set-dup" data-id="${esc(el.dataset.id)}"><span class="rt"><span class="t">Duplicate</span></span></button>
+      ${X.hooks.setMenu ? X.hooks.setMenu(setById(el.dataset.id)) : ''}
       <button class="row danger" data-act="set-del" data-id="${esc(el.dataset.id)}"><span class="rt"><span class="t">Delete set</span></span></button>`);
   },
   'set-rename': (el) => { const set = setById(el.dataset.id); sheetCtx = { setId: set.id }; sheet(`<div class="sh-h">Rename set</div><div class="field"><input id="rn" value="${esc(set.name)}"></div><div class="btnrow"><button class="btn" data-act="close-sheet">Cancel</button><button class="btn primary" data-act="rename-go">Save</button></div>`); },
@@ -1162,6 +1165,7 @@ const A = {
       <button class="row" data-act="song-addset"><span class="rt"><span class="t">Add to a set…</span></span></button>
       <button class="row" data-act="song-dup"><span class="rt"><span class="t">Duplicate</span></span></button>
       <button class="row" data-act="song-edit"><span class="rt"><span class="t">Edit</span></span></button>
+      ${X.hooks.songMenu ? X.hooks.songMenu(s) : ''}
       <button class="row danger" data-act="song-trash"><span class="rt"><span class="t">Move to trash</span></span></button>`);
   },
   'song-addset': () => chooseSetSheet([S.cur.songId]),
@@ -1317,6 +1321,7 @@ async function boot() {
   applyTheme();
   await requestPersist();
   render();
+  if (X.hooks.ready) X.hooks.ready();
   if (S.songs.length && (!S.meta.lastSnap || now() - S.meta.lastSnap > 6 * 36e5)) { S.dirtySnap = true; takeSnapshot('daily').catch(() => {}); }
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').then((reg) => {
@@ -1328,7 +1333,7 @@ async function boot() {
   }
 }
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
-Object.assign(X, { render, buildSbp, importFiles, fmtTime, newSong, rng, S, A, $, $$, esc, ico, IC, sheet, closeSheet, toast, confirmBox, songById, setById, live, fmtDate, now, uid, go, route, DB, download, makeCtx, keyLabel, holderOf, curSong, curHolder, paintSong, saveSong, saveSettings, applyTheme, acquireWake, releaseWake, stopScroll, startScroll, setStep, APP, copyrightLine, get sheetCtx() { return sheetCtx; }, set sheetCtx(v) { sheetCtx = v; } });
+Object.assign(X, { takeSnapshot, saveSet, markDirty, render, buildSbp, importFiles, fmtTime, newSong, rng, S, A, $, $$, esc, ico, IC, sheet, closeSheet, toast, confirmBox, songById, setById, live, fmtDate, now, uid, go, route, DB, download, makeCtx, keyLabel, holderOf, curSong, curHolder, paintSong, saveSong, saveSettings, applyTheme, acquireWake, releaseWake, stopScroll, startScroll, setStep, APP, copyrightLine, get sheetCtx() { return sheetCtx; }, set sheetCtx(v) { sheetCtx = v; } });
 
 // drag a song by its handle to reorder a set
 document.addEventListener('pointerdown', (e) => {

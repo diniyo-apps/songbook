@@ -326,3 +326,14 @@ body.hasrec.hasnav .songpage { padding-bottom: calc(262px + var(--sb)); }
 .rghead { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 4px 8px; } .rghead a:first-child { display: flex; flex-direction: column; color: var(--text); min-width: 0; } .rghead b { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .rghead small { opacity: .65; }
 .rghead .btn.sm { padding: 8px 12px; font-size: 13px; min-height: 0; flex: none; }
 .chips { display: flex; gap: 8px; overflow-x: auto; }
+
+/* cloud */
+.gate { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 18px; background: var(--bg); overflow: auto; }
+.gatecard { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 6px; }
+.gatecard h2 { margin: 0; font-size: 30px; letter-spacing: -.02em; }
+.gatecard .seg { align-self: flex-start; margin: 8px 0; }
+.btn.wide { width: 100%; }
+.linkbtn { color: var(--accent); padding: 12px 0; font-size: 15px; text-align: center; }
+.bd.warn { background: rgba(232,179,107,.18); color: var(--warn); }
+.bd.mine { background: rgba(127,208,162,.15); color: var(--ok); }
+.cl-banner { border-color: var(--warn); }
