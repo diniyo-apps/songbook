@@ -103,6 +103,7 @@
       await loadProfile();
       if (!active()) { C.busy = false; paintStatus(); if (manual) toast(C.profile.status === 'pending' ? 'Still waiting for approval' : 'This account is switched off'); gateRefresh(); return; }
       closeGate();
+      if (C.profile.is_admin) { try { const pp = await api('/rest/v1/profiles?status=eq.pending&select=id'); C.pending = pp.length; } catch (e) {} } else C.pending = 0;
       const teams = (C.profile.teams || []).map((t) => t.id);
       let rs = [], rsets = [];
       for (const t of teams) {
@@ -364,7 +365,8 @@
     leadTeams().forEach((t) => roles.push('Lead · ' + t.name));
     (p.teams || []).filter((t) => t.role !== 'lead').forEach((t) => roles.push('Member · ' + t.name));
     const n = conflicts();
-    return `<section class="card" id="cloudcard"><h3>Shared songbook</h3>
+    const wait = isAdmin() && C.pending ? `<a class="banner" href="#/admin"><div><b>${C.pending} ${C.pending === 1 ? 'person is' : 'people are'} waiting for approval</b><span>Tap to review</span></div>${ico('chev')}</a>` : '';
+    return `${wait}<section class="card" id="cloudcard"><h3>Shared songbook</h3>
       <div class="kv"><label>${esc(p.name || 'You')}</label><span class="small muted">${esc(p.email || '')}</span></div>
       <p class="small">${active() ? esc(roles.join(' · ') || 'Member') : p.status === 'pending' ? 'Waiting for an admin to approve your account.' : 'This account is switched off.'}</p>
       <p class="small muted">${S.songs.filter((s) => !s.deleted && s.cloud).length} shared songs \u00b7 ${S.songs.filter((s) => !s.deleted && !s.cloud).length} only on this phone</p>
@@ -486,7 +488,7 @@
   async function loadAdmin() {
     try {
       const [ps, ms, ts] = await Promise.all([api('/rest/v1/profiles?select=*&order=created_at'), api('/rest/v1/memberships?select=user_id,team_id,role'), api('/rest/v1/teams?select=id,name&order=created_at')]);
-      adm = { ps, ms, ts }; paintAdmin();
+      adm = { ps, ms, ts }; C.pending = ps.filter((x) => x.status === 'pending').length; paintAdmin();
     } catch (e) { const b = $('#admbox'); if (b) b.innerHTML = `<p class="muted pad">Could not load: ${esc(e.message)}</p>`; }
   }
   function paintAdmin() {
