@@ -371,7 +371,7 @@
       <p class="small muted" id="cloudstat">${C.busy ? 'Syncing…' : 'Last sync: ' + when(C.last)}</p>
       ${n ? `<p class="small" style="color:var(--warn)">${n} shared song${n > 1 ? 's have' : ' has'} an update that clashes with your edits. Open the song and choose.</p>` : ''}
       <div class="btnrow tight"><button class="btn primary" data-act="cl-sync">Sync now</button><button class="btn" data-act="cl-pw">Change password</button><button class="btn" data-act="cl-out">Sign out</button></div>
-      ${isLead() ? `<div class="btnrow tight"><button class="btn" data-act="cl-pub-all">Add all my new songs to the shared library</button></div>` : ''}
+      ${isLead() ? `<div class="btnrow tight"><button class="btn" data-act="cl-choose">Choose songs or sets to share…</button><button class="btn" data-act="cl-pub-all">Add all my new songs</button></div>` : ''}
       ${isAdmin() ? `<div class="btnrow tight"><a class="btn" href="#/admin">Manage people</a></div>` : ''}
     </section>`;
   };
@@ -394,6 +394,41 @@
       let ok = 0, bad = 0; const all = list.concat(ed);
       for (let i = 0; i < all.length; i++) { toast('Sharing ' + (i + 1) + ' of ' + all.length + '…', 1500); try { await publishSong(all[i]); ok++; } catch (e) { bad++; if (e.offline) break; } }
       pubBusy = false; toast(`Shared ${ok}${bad ? ', ' + bad + ' failed' : ''}`, 5000); X.render();
+    });
+  };
+
+  /* ---------- choose what to share (sets / all songs) ---------- */
+  let ch = null;
+  const todo = (s) => !s.deleted && (!s.cloud || (edited(s) && !s.cloud.incoming));
+  function chSongs() {
+    if (ch.all) return live().filter(todo);
+    const ids = new Set(); ch.sets.forEach((id) => { const st = setById(id); if (st) st.items.forEach((i) => ids.add(i.songId)); });
+    return live().filter((s) => ids.has(s.id) && todo(s));
+  }
+  function paintChooser() {
+    const sets = S.sets.slice().sort((a, b) => String(a.name).localeCompare(b.name));
+    const n = chSongs().length;
+    const cb = (on) => `<span class="cb ${on ? 'on' : ''}">${on ? ico('check') : ''}</span>`;
+    sheet(`<div class="sh-h">Choose what to share</div>
+      <p class="small muted">Pick songs to add to the shared library. Songs already shared are not sent again.</p>
+      <button class="row" data-act="cl-ch-all">${cb(ch.all)}<span class="rt"><span class="t">Every song not shared yet</span><span class="a">${live().filter(todo).length} songs</span></span></button>
+      <div class="small muted pad0" style="margin:8px 0 2px">Or by set</div>
+      <div class="chlist">${sets.length ? sets.map((st) => { const left = st.items.filter((i) => { const sg = songById(i.songId); return sg && todo(sg); }).length;
+        return `<button class="row" data-act="cl-ch-set" data-id="${esc(st.id)}">${cb(ch.all || ch.sets.has(st.id))}<span class="rt"><span class="t">${esc(st.name)}</span><span class="a">${st.items.length} songs · ${left} to share${st.cloud ? ' · set already shared' : ''}</span></span></button>`; }).join('') : '<p class="small muted">You have no sets yet.</p>'}</div>
+      <div class="kv"><label>Also share the selected sets</label><button class="sw ${ch.withSets ? 'on' : ''}" data-act="cl-ch-with" aria-label="toggle"></button></div>
+      <div class="btnrow"><button class="btn" data-act="close-sheet">Cancel</button><button class="btn primary" data-act="cl-ch-go" ${n || (ch.withSets && ch.sets.size) ? '' : 'disabled'}>Share ${n} song${n === 1 ? '' : 's'}</button></div>`);
+  }
+  A['cl-choose'] = async () => { toast('Checking the shared library first…', 1500); try { await sync(false); } catch (e) {} ch = { all: false, sets: new Set(), withSets: true }; paintChooser(); };
+  A['cl-ch-all'] = () => { ch.all = !ch.all; paintChooser(); };
+  A['cl-ch-set'] = (el) => { const id = el.dataset.id; if (ch.all) { ch.all = false; S.sets.forEach((s) => ch.sets.add(s.id)); } if (ch.sets.has(id)) ch.sets.delete(id); else ch.sets.add(id); paintChooser(); };
+  A['cl-ch-with'] = () => { ch.withSets = !ch.withSets; paintChooser(); };
+  A['cl-ch-go'] = () => {
+    const songs = chSongs(); const sets = ch.withSets ? (ch.all ? S.sets.slice() : S.sets.filter((s) => ch.sets.has(s.id))) : [];
+    confirmBox('Share with the whole team?', `${songs.length} song${songs.length === 1 ? '' : 's'}${sets.length ? ' and ' + sets.length + ' set' + (sets.length === 1 ? '' : 's') : ''} will be added to the shared library for everyone.`, 'Share', async () => {
+      if (pubBusy) return; pubBusy = true; let ok = 0, bad = 0, sok = 0;
+      for (let i = 0; i < songs.length; i++) { toast('Sharing song ' + (i + 1) + ' of ' + songs.length + '…', 1500); try { await publishSong(songs[i]); ok++; } catch (e) { bad++; if (e.offline) break; } }
+      for (const st of sets) { try { await publishSet(st); sok++; } catch (e) { bad++; } }
+      pubBusy = false; toast(`Shared ${ok} song${ok === 1 ? '' : 's'}${sets.length ? ' and ' + sok + ' set' + (sok === 1 ? '' : 's') : ''}${bad ? ', ' + bad + ' failed' : ''}`, 5000); X.render();
     });
   };
 
