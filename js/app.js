@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '2.5.1', build: '2026-11-20' });
+const APP = Object.freeze({ name: 'Songbook', version: '2.6.0', build: '2026-11-20' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -307,6 +307,7 @@ function viewSongs() {
     <button class="ibtn" data-act="new-song" aria-label="New song">${ico('plus')}</button>
     <button class="ibtn ${sel ? 'on' : ''}" data-act="toggle-select" aria-label="Select songs">${ico('select')}</button>
   </div></header>
+  ${X.hooks.teamBar ? X.hooks.teamBar() : ''}
   ${backupDue() ? `<div class="banner" data-act="backup-now">${ico('shield')}<div><b>Back up your songs</b><span>${S.meta.lastBackup ? 'Last backup ' + fmtDate(S.meta.lastBackup) : 'You have not made a backup yet'} · tap to save one</span></div>${ico('chev')}</div>` : ''}
   <div class="search">${ico('search')}<input id="q" type="search" inputmode="search" autocomplete="off" placeholder="Search title, artist or lyrics…" value="${esc(S.ui.q)}"><button class="ibtn sm" data-act="clear-q" aria-label="Clear">${ico('close')}</button></div>
   <div class="filters">
@@ -326,6 +327,7 @@ function groupLetter(s) {
 function filteredSongs() {
   const q = norm(S.ui.q);
   let arr = live().filter((s) => S.ui.filter === 'all' || (S.ui.filter === 'pdf') === (s.fmt === 'pdf'));
+  if (X.hooks.teamFilter) arr = arr.filter((s) => X.hooks.teamFilter(s));
   if (S.ui.where === 'shared') arr = arr.filter((s) => s.cloud); else if (S.ui.where === 'local') arr = arr.filter((s) => !s.cloud);
   if (q) arr = arr.filter((s) => norm(s.title).includes(q) || norm(s.author).includes(q) || (s.fmt === 'text' && norm(s.body).includes(q)));
   const cmp = (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
@@ -711,7 +713,7 @@ function insertAtCursor(text) {
 // ───────────────────────── Sets ─────────────────────────
 function monthKey(ms) { return new Date(ms).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }); }
 function viewSets() {
-  const sets = [...S.sets].sort((a, b) => b.date - a.date);
+  const sets = [...S.sets].filter((s) => !X.hooks.teamFilter || X.hooks.teamFilter(s)).sort((a, b) => b.date - a.date);
   let html = '', last = null;
   for (const s of sets) {
     const m = monthKey(s.date);
@@ -720,6 +722,7 @@ function viewSets() {
     html += `<a class="row" href="#/set/${encodeURIComponent(s.id)}"><span class="rt"><span class="t">${esc(s.name)}</span><span class="a">${fmtDate(s.date)} · ${n} song${n === 1 ? '' : 's'}</span></span>${ico('chev', 'dim')}</a>`;
   }
   return `<header class="top"><h1>All Sets</h1><div class="acts"><button class="ibtn" data-act="new-set" aria-label="New set">${ico('plus')}</button></div></header>
+    ${X.hooks.teamBar ? X.hooks.teamBar() : ''}
     ${html || `<div class="empty"><div class="eg">${ico('sets')}</div><h2>No sets yet</h2><p>A set is your song order for a service or practice.</p><button class="btn primary" data-act="new-set">${ico('plus')} New set</button></div>`}`;
 }
 function viewSetDetail(id, hl) {

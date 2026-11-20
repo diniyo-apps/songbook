@@ -206,8 +206,8 @@
   }
 
   /* ---------- lead: publish / hide / delete ---------- */
-  async function publishSong(s) {
-    const team = (s.cloud && s.cloud.team) || (leadTeams()[0] || {}).id;
+  async function publishSong(s, teamArg) {
+    const team = (s.cloud && s.cloud.team) || teamArg || (leadTeams()[0] || {}).id;
     if (!isLead(team)) throw fail('Only leads can change the shared library.');
     let path = s.cloud && s.cloud.pdf || null;
     if (s.fmt === 'pdf') {
@@ -237,8 +237,8 @@
     if (!rows || !rows.length) throw fail('Someone else changed this song first. Sync, then try again.', { conflict: true });
     s.cloud.ver = rows[0].version; return rows[0];
   }
-  async function publishSet(set) {
-    const team = (set.cloud && set.cloud.team) || (leadTeams()[0] || {}).id;
+  async function publishSet(set, teamArg) {
+    const team = (set.cloud && set.cloud.team) || teamArg || (leadTeams()[0] || {}).id;
     const items = []; let skipped = 0;
     for (const i of set.items) { const sg = songById(i.songId); if (sg && sg.cloud) items.push({ cid: sg.cloud.id }); else skipped++; }
     const d = { name: set.name, items };
@@ -260,6 +260,7 @@
 
   /* ---------- UI: song & list hooks ---------- */
   const H = X.hooks;
+  const A = X.A;
   const row = (act, t, a, cls) => `<button class="row ${cls || ''}" data-act="${act}"><span class="rt"><span class="t">${t}</span>${a ? `<span class="a">${a}</span>` : ''}</span></button>`;
   H.rowTag = (s) => {
     if (!s.cloud) return '';
@@ -270,6 +271,36 @@
   };
   const teamName = (id) => ((C.profile && C.profile.teams || []).find((x) => x.id === id) || {}).name || 'the team';
   const dstr = (v) => { if (!v) return ''; const d = new Date(v); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); };
+  /* ----- team name bar and switcher ----- */
+  const TK = 'sb_team';
+  const myTeams = () => (active() ? (C.profile.teams || []) : []);
+  const roleWord = (r) => (r === 'lead' ? 'Lead' : 'Member');
+  function curTeam() { const t = myTeams(); if (t.length < 2) return null; let v = LS.get(TK); if (v === 'mine') return 'mine'; if (!t.some((x) => x.id === v)) v = t[0].id; return v; }
+  H.teamFilter = (item) => { const v = curTeam(); if (!v) return true; if (v === 'mine') return !item.cloud; return !!(item.cloud && item.cloud.team === v); };
+  H.teamBar = () => {
+    const t = myTeams(); if (!t.length) return '';
+    if (t.length === 1) return `<div class="teamline"><b>${esc(t[0].name)}</b><i>${roleWord(t[0].role)}</i></div>`;
+    const v = curTeam(); const tm = t.find((x) => x.id === v);
+    return `<button class="teampill" data-act="cl-team"><b>${tm ? esc(tm.name) : 'My songs'}</b><i>${tm ? roleWord(tm.role) : 'not shared'}</i>${ico('chev')}</button>`;
+  };
+  A['cl-team'] = () => {
+    const v = curTeam(); const t = myTeams();
+    const cnt = (id) => [S.songs.filter((s) => !s.deleted && s.cloud && s.cloud.team === id).length, S.sets.filter((s) => s.cloud && s.cloud.team === id).length];
+    const row = (id, name, sub, on) => `<button class="row ${on ? 'cur' : ''}" data-act="cl-team-pick" data-v="${id}"><span class="rt"><span class="t">${esc(name)}</span><span class="a">${sub}</span></span>${on ? ico('check') : ''}</button>`;
+    sheet(`<div class="sh-h">Choose a team</div><p class="small muted">Each team has its own songs and sets. Other teams never see them.</p>` +
+      t.map((x) => { const [a, b] = cnt(x.id); return row(x.id, x.name, `${roleWord(x.role)} \u00b7 ${a} songs \u00b7 ${b} sets`, v === x.id); }).join('') +
+      row('mine', 'My songs (not shared)', S.songs.filter((s) => !s.deleted && !s.cloud).length + ' songs only you have', v === 'mine'));
+  };
+  A['cl-team-pick'] = (el) => { LS.set(TK, el.dataset.v); closeSheet(); X.render(); };
+  let shareRes = null;
+  function pickShareTeam() {
+    const lt = leadTeams(); if (lt.length <= 1) return Promise.resolve((lt[0] || {}).id);
+    const v = curTeam(); if (v && lt.some((x) => x.id === v)) return Promise.resolve(v);
+    return new Promise((res) => { shareRes = res;
+      sheet(`<div class="sh-h">Share into which team?</div>` + lt.map((x) => `<button class="row" data-act="cl-share-team" data-v="${x.id}"><span class="rt"><span class="t">${esc(x.name)}</span></span></button>`).join('') + `<div class="btnrow"><button class="btn" data-act="cl-share-cancel">Cancel</button></div>`); });
+  }
+  A['cl-share-team'] = (el) => { closeSheet(); if (shareRes) { shareRes(el.dataset.v); shareRes = null; } };
+  A['cl-share-cancel'] = () => { closeSheet(); if (shareRes) { shareRes(null); shareRes = null; } };
   H.songInfo = (s) => {
     if (!C.session) return '';
     let a, b = '', cls = '';
@@ -284,7 +315,7 @@
     return `<div class="cl-info"><b>${a}</b><span>${b}</span></div>`;
   };
   H.whereBar = () => {
-    if (!C.session) return '';
+    if (!C.session || myTeams().length > 1) return '';
     const w = S.ui.where || 'all';
     const sh = S.songs.filter((s) => !s.deleted && s.cloud).length, lo = S.songs.filter((s) => !s.deleted && !s.cloud).length;
     return `<div class="wherebar"><div class="seg">${[['all', 'All'], ['shared', '\u2601 Shared ' + sh], ['local', 'Not shared ' + lo]].map(([v, l]) => `<button class="${w === v ? 'on' : ''}" data-act="cl-where" data-v="${v}">${l}</button>`).join('')}</div></div>`;
@@ -322,11 +353,11 @@
     n.insertAdjacentHTML('beforeend', '<div class="notecard cl-banner"><b>Shared version updated</b><p>You have your own edits on this song. <button class="btn sm" data-act="cl-review-song">Review</button></p></div>');
   };
 
-  const A = X.A;
   A['cl-where'] = (el) => { S.ui.where = el.dataset.v; X.render(); };
   const cur = () => X.curSong();
-  A['cl-pub-song'] = () => { closeSheet(); const s = cur(); const nw = !s.cloud;
-    confirmBox(nw ? 'Add to the shared library?' : 'Publish your changes?', nw ? '"' + s.title + '" will be added for everyone in ' + teamName((leadTeams()[0] || {}).id) + '.' : 'Everyone will get your version of "' + s.title + '" the next time they sync. The old version is kept in history.', nw ? 'Add for everyone' : 'Publish', () => guard(() => publishSong(s), nw ? 'Added to the shared library' : 'Published to everyone')); };
+  A['cl-pub-song'] = async () => { closeSheet(); const s = cur(); const nw = !s.cloud;
+    const tm = nw ? await pickShareTeam() : null; if (nw && !tm) return;
+    confirmBox(nw ? 'Add to the shared library?' : 'Publish your changes?', nw ? '"' + s.title + '" will be added for everyone in ' + teamName(tm) + '.' : 'Everyone will get your version of "' + s.title + '" the next time they sync. The old version is kept in history.', nw ? 'Add for everyone' : 'Publish', () => guard(() => publishSong(s, tm), nw ? 'Added to the shared library' : 'Published to everyone')); };
   A['cl-hide-song'] = () => { const s = cur(); closeSheet(); const hide = !s.cloud.hidden;
     confirmBox(hide ? 'Hide this song from everyone?' : 'Show this song to everyone again?', hide ? 'Members will no longer see "' + s.title + '". You can show it again any time.' : 'Members will get this song back.', hide ? 'Hide' : 'Show', () => guard(async () => { await patchSong(s, { hidden: hide }); s.cloud.hidden = hide; await putSong(s); }, hide ? 'Hidden' : 'Visible again')); };
   A['cl-del-song'] = () => { const s = cur(); closeSheet();
@@ -391,10 +422,11 @@
     const list = live().filter((s) => !s.cloud);
     const ed = live().filter((s) => edited(s) && !s.cloud.incoming);
     if (!list.length && !ed.length) { toast('Nothing new to share'); return; }
-    confirmBox('Share with the whole team?', `${list.length} new song${list.length === 1 ? '' : 's'}${ed.length ? ' and ' + ed.length + ' changed' : ''} will be added to the shared library for everyone. This takes a few minutes for many PDFs.`, 'Share', async () => {
+    const tm = await pickShareTeam(); if (!tm) return;
+    confirmBox('Share with ' + teamName(tm) + '?', `${list.length} new song${list.length === 1 ? '' : 's'}${ed.length ? ' and ' + ed.length + ' changed' : ''} will be added to the shared library for everyone. This takes a few minutes for many PDFs.`, 'Share', async () => {
       if (pubBusy) return; pubBusy = true;
       let ok = 0, bad = 0; const all = list.concat(ed);
-      for (let i = 0; i < all.length; i++) { toast('Sharing ' + (i + 1) + ' of ' + all.length + '…', 1500); try { await publishSong(all[i]); ok++; } catch (e) { bad++; if (e.offline) break; } }
+      for (let i = 0; i < all.length; i++) { toast('Sharing ' + (i + 1) + ' of ' + all.length + '…', 1500); try { await publishSong(all[i], tm); ok++; } catch (e) { bad++; if (e.offline) break; } }
       pubBusy = false; toast(`Shared ${ok}${bad ? ', ' + bad + ' failed' : ''}`, 5000); X.render();
     });
   };
@@ -420,16 +452,16 @@
       <div class="kv"><label>Also share the selected sets</label><button class="sw ${ch.withSets ? 'on' : ''}" data-act="cl-ch-with" aria-label="toggle"></button></div>
       <div class="btnrow"><button class="btn" data-act="close-sheet">Cancel</button><button class="btn primary" data-act="cl-ch-go" ${n || (ch.withSets && ch.sets.size) ? '' : 'disabled'}>Share ${n} song${n === 1 ? '' : 's'}</button></div>`);
   }
-  A['cl-choose'] = async () => { toast('Checking the shared library first…', 1500); try { await sync(false); } catch (e) {} ch = { all: false, sets: new Set(), withSets: true }; paintChooser(); };
+  A['cl-choose'] = async () => { toast('Checking the shared library first…', 1500); try { await sync(false); } catch (e) {} const tm0 = await pickShareTeam(); if (!tm0) return; ch = { team: tm0, all: false, sets: new Set(), withSets: true }; paintChooser(); };
   A['cl-ch-all'] = () => { ch.all = !ch.all; paintChooser(); };
   A['cl-ch-set'] = (el) => { const id = el.dataset.id; if (ch.all) { ch.all = false; S.sets.forEach((s) => ch.sets.add(s.id)); } if (ch.sets.has(id)) ch.sets.delete(id); else ch.sets.add(id); paintChooser(); };
   A['cl-ch-with'] = () => { ch.withSets = !ch.withSets; paintChooser(); };
   A['cl-ch-go'] = () => {
     const songs = chSongs(); const sets = ch.withSets ? (ch.all ? S.sets.slice() : S.sets.filter((s) => ch.sets.has(s.id))) : [];
-    confirmBox('Share with the whole team?', `${songs.length} song${songs.length === 1 ? '' : 's'}${sets.length ? ' and ' + sets.length + ' set' + (sets.length === 1 ? '' : 's') : ''} will be added to the shared library for everyone.`, 'Share', async () => {
+    confirmBox('Share with ' + teamName(ch.team) + '?', `${songs.length} song${songs.length === 1 ? '' : 's'}${sets.length ? ' and ' + sets.length + ' set' + (sets.length === 1 ? '' : 's') : ''} will be added to the shared library for everyone.`, 'Share', async () => {
       if (pubBusy) return; pubBusy = true; let ok = 0, bad = 0, sok = 0;
-      for (let i = 0; i < songs.length; i++) { toast('Sharing song ' + (i + 1) + ' of ' + songs.length + '…', 1500); try { await publishSong(songs[i]); ok++; } catch (e) { bad++; if (e.offline) break; } }
-      for (const st of sets) { try { await publishSet(st); sok++; } catch (e) { bad++; } }
+      for (let i = 0; i < songs.length; i++) { toast('Sharing song ' + (i + 1) + ' of ' + songs.length + '…', 1500); try { await publishSong(songs[i], ch.team); ok++; } catch (e) { bad++; if (e.offline) break; } }
+      for (const st of sets) { try { await publishSet(st, ch.team); sok++; } catch (e) { bad++; } }
       pubBusy = false; toast(`Shared ${ok} song${ok === 1 ? '' : 's'}${sets.length ? ' and ' + sok + ' set' + (sok === 1 ? '' : 's') : ''}${bad ? ', ' + bad + ' failed' : ''}`, 5000); X.render();
     });
   };
@@ -511,7 +543,26 @@
   }
   async function edge(body) { return api('/functions/v1/admin-users', { method: 'POST', json: body }); }
   const admDo = async (fn, ok) => { try { await fn(); toast(ok); await loadAdmin(); } catch (e) { toast(e.message, 5000); } };
-  A['adm-status'] = (el) => admDo(() => edge({ action: 'set_status', uid: el.dataset.u, status: el.dataset.v }), el.dataset.v === 'active' ? 'Switched on' : 'Switched off');
+  let apr = null;
+  A['adm-status'] = (el) => {
+    const u = el.dataset.u, v = el.dataset.v;
+    const has = adm.ms.some((m) => m.user_id === u);
+    if (v === 'active' && !has) {
+      const p = adm.ps.find((x) => x.id === u) || {};
+      apr = { u, sel: {} }; if (adm.ts[0]) apr.sel[adm.ts[0].id] = 'user';
+      sheet(`<div class="sh-h">Approve ${esc(p.name || 'this person')}</div><p class="small muted">Choose which teams they can use. They only ever see songs and sets from these teams.</p>` +
+        adm.ts.map((t) => `<div class="kv"><label>${esc(t.name)}</label><select data-adm-pick data-t="${t.id}"><option value="none" ${apr.sel[t.id] ? '' : 'selected'}>No access</option><option value="user" ${apr.sel[t.id] === 'user' ? 'selected' : ''}>Member</option><option value="lead">Lead</option></select></div>`).join('') +
+        `<div class="btnrow"><button class="btn" data-act="close-sheet">Cancel</button><button class="btn primary" data-act="adm-approve">Approve</button></div>`);
+      return;
+    }
+    admDo(() => edge({ action: 'set_status', uid: u, status: v }), v === 'active' ? 'Switched on' : 'Switched off');
+  };
+  A['adm-approve'] = () => {
+    const picks = Object.entries(apr.sel).filter(([, r]) => r && r !== 'none');
+    if (!picks.length) { toast('Pick at least one team'); return; }
+    const u = apr.u; closeSheet();
+    admDo(async () => { for (const [tid, role] of picks) await api('/rest/v1/rpc/admin_set_role', { method: 'POST', json: { uid: u, tid, new_role: role } }); await edge({ action: 'set_status', uid: u, status: 'active' }); }, 'Approved');
+  };
   A['adm-admin'] = (el) => admDo(() => api('/rest/v1/rpc/admin_set_admin', { method: 'POST', json: { uid: el.dataset.u, flag: el.dataset.v === '1' } }), 'Updated');
   A['adm-del'] = (el) => confirmBox('Delete this account?', 'They will no longer be able to sign in. Songs already on their phone stay there.', 'Delete', () => admDo(() => edge({ action: 'delete', uid: el.dataset.u }), 'Deleted'), true);
   A['adm-pw'] = (el) => { adm.pwFor = el.dataset.u; sheet(`<div class="sh-h">Temporary password</div><p class="small muted">Tell them this password in person. They should change it after signing in.</p><div class="field"><input id="tpw" value="${Math.random().toString(36).slice(2, 6)}${Math.random().toString(36).slice(2, 8)}A9"></div><div class="btnrow"><button class="btn" data-act="close-sheet">Cancel</button><button class="btn primary" data-act="adm-pw-go">Set</button></div>`); };
@@ -519,6 +570,7 @@
   A['adm-team-del'] = (el) => confirmBox('Remove the team "' + el.dataset.n + '"?', 'Everyone loses access to it. Only teams with no songs or sets can be removed.', 'Remove team', () => admDo(() => api('/rest/v1/rpc/admin_delete_team', { method: 'POST', json: { tid: el.dataset.t } }), 'Team removed'), true);
   A['adm-team'] = () => sheet(`<div class="sh-h">Add a team</div><div class="field"><input id="tname" placeholder="Team name"></div><div class="btnrow"><button class="btn" data-act="close-sheet">Cancel</button><button class="btn primary" data-act="adm-team-go">Add</button></div>`);
   A['adm-team-go'] = () => { const v = $('#tname').value.trim(); if (!v) return; closeSheet(); admDo(() => api('/rest/v1/rpc/admin_create_team', { method: 'POST', json: { team_name: v } }), 'Team added'); };
+  document.addEventListener('change', (e) => { const pk = e.target.closest && e.target.closest('[data-adm-pick]'); if (pk && apr) apr.sel[pk.dataset.t] = pk.value; });
   document.addEventListener('change', (e) => {
     const s = e.target.closest && e.target.closest('[data-adm-role]'); if (!s) return;
     admDo(() => api('/rest/v1/rpc/admin_set_role', { method: 'POST', json: { uid: s.dataset.u, tid: s.dataset.t, new_role: s.value } }), 'Updated');
@@ -534,6 +586,7 @@
       lastAuto = now(); sync(false);
     }
   };
+  ['new-song', 'imp-go'].forEach((k) => { const o = A[k]; if (!o) return; A[k] = async (...args) => { const v = curTeam(); if (v && v !== 'mine') { LS.set(TK, 'mine'); toast('Saved in My songs. Leads can share it with a team from the \u22ef menu.', 4500); } return o(...args); }; });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') auto(); });
   window.addEventListener('online', () => { lastAuto = 0; auto(); });
   Object.assign(X, { cloudSync: sync, cloudApi: api });
