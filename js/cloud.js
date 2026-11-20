@@ -104,6 +104,14 @@
       if (!active()) { C.busy = false; paintStatus(); if (manual) toast(C.profile.status === 'pending' ? 'Still waiting for approval' : 'This account is switched off'); gateRefresh(); return; }
       closeGate();
       if (C.profile.is_admin) { try { const pp = await api('/rest/v1/profiles?status=eq.pending&select=id'); C.pending = pp.length; const rq = await api('/rest/v1/member_requests?status=eq.pending&select=id'); C.reqs = rq.length; } catch (e) {} } else { C.pending = 0; C.reqs = 0; }
+      // answers to my requests (leads)
+      if (isLead()) { try {
+        let seen = LS.get('sb_req_seen'); if (!seen) { seen = new Date().toISOString(); LS.set('sb_req_seen', seen); }
+        const dec = await api('/rest/v1/member_requests?requested_by=eq.' + C.session.user.id + '&status=neq.pending&decided_at=gt.' + encodeURIComponent(seen) + '&select=kind,status,target_name,target_email&order=decided_at');
+        C.decided = dec.length;
+        if (dec.length && !C.told) { C.told = true; const d = dec[dec.length - 1]; const what = d.kind === 'add' ? 'add ' + (d.target_name || d.target_email) : d.kind === 'activate' ? 'switch an account on' : 'switch an account off';
+          const msg = (dec.length > 1 ? dec.length + ' of your requests were answered. ' : '') + 'The admin ' + d.status + ' your request to ' + what + '.'; setTimeout(() => toast(msg, 6000), 3200); }
+      } catch (e) {} } else C.decided = 0;
       const teams = (C.profile.teams || []).map((t) => t.id);
       let rs = [], rsets = [];
       for (const t of teams) {
@@ -428,7 +436,8 @@
     (p.teams || []).filter((t) => t.role !== 'lead').forEach((t) => roles.push('Member · ' + t.name));
     const n = conflicts();
     const bits = []; if (C.pending) bits.push(C.pending + (C.pending === 1 ? ' person is' : ' people are') + ' waiting for approval'); if (C.reqs) bits.push(C.reqs + (C.reqs === 1 ? ' request' : ' requests') + ' from leads');
-    const wait = isAdmin() && bits.length ? `<a class="banner" href="#/admin"><div><b>${bits.join(' \u00b7 ')}</b><span>Tap to review</span></div>${ico('chev')}</a>` : '';
+    const answered = isLead() && C.decided ? `<a class="banner" href="#/team"><div><b>${C.decided} of your requests ${C.decided === 1 ? 'was' : 'were'} answered</b><span>Tap to see the answer</span></div>${ico('chev')}</a>` : '';
+    const wait = answered + (isAdmin() && bits.length ? `<a class="banner" href="#/admin"><div><b>${bits.join(' \u00b7 ')}</b><span>Tap to review</span></div>${ico('chev')}</a>` : '');
     return `${wait}<section class="card" id="cloudcard"><h3>Shared songbook</h3>
       <div class="kv"><label>${esc(p.name || 'You')}</label><span class="small muted">${esc(p.email || '')}</span></div>
       <p class="small">${active() ? esc(roles.join(' · ') || 'Member') : p.status === 'pending' ? 'Waiting for an admin to approve your account.' : 'This account is switched off.'}</p>
@@ -643,7 +652,7 @@
       const out = [];
       for (const t of leadTeams()) out.push({ t, ms: await api('/rest/v1/rpc/lead_team_members', { method: 'POST', json: { tid: t.id } }) });
       const rq = await api('/rest/v1/member_requests?select=*&order=created_at.desc&limit=30');
-      tv = { out, rq }; paintTeam();
+      tv = { out, rq }; paintTeam(); LS.set('sb_req_seen', new Date().toISOString()); C.decided = 0; C.told = false;
     } catch (e) { const b = $('#tmbox'); if (b) b.innerHTML = `<p class="muted pad">Could not load: ${esc(e.message)}</p>`; }
   }
   function paintTeam() {
