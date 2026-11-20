@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '2.3.5', build: '2026-11-20' });
+const APP = Object.freeze({ name: 'Songbook', version: '2.4.0', build: '2026-11-20' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -282,6 +282,8 @@ function render() {
     case 'admin': app.innerHTML = shell('settings', X.hooks.viewAdmin ? X.hooks.viewAdmin() : ''); break;
     case 'settings': app.innerHTML = shell('settings', viewSettings()); break;
     case 'trash': app.innerHTML = shell('settings', viewTrash()); break;
+    case 'appearance': app.innerHTML = shell('settings', viewAppearance()); break;
+    case 'display': app.innerHTML = shell('settings', viewDisplay()); break;
     case 'song': viewSong(app, r); key = 'song'; break;
     case 'edit': viewEdit(app, r); key = 'edit'; break;
     default: app.innerHTML = shell('songs', viewSongs()); key = 'songs'; renderList();
@@ -785,27 +787,37 @@ function viewSettings() {
   </section>
   <details class="card acc" data-acc="snaps" ${S.ui.acc['snaps'] ? 'open' : ''}><summary><span><h3>Automatic safety copies</h3><span class="accsub">Last 5 copies · restore one</span></span><i class="accarrow">${ico('chev')}</i></summary><p class="small muted">The app quietly keeps the 5 most recent copies of your whole library on this device, including one made before anything risky (import, restore, delete forever). Older copies are removed automatically.</p><div id="snaplist" class="snaplist"></div></details>
   <section class="card"><h3>Trash</h3><a class="row" href="#/trash"><span class="rt"><span class="t">Deleted songs</span><span class="a">${trashed().length} in trash — restore any time</span></span>${ico('chev', 'dim')}</a></section>
-  <details class="card acc" data-acc="appearance" ${S.ui.acc['appearance'] ? 'open' : ''}><summary><span><h3>Appearance</h3><span class="accsub">Theme, colours, background picture</span></span><i class="accarrow">${ico('chev')}</i></summary>
-    <div class="kv"><label>Style</label><div class="seg"><button class="${st.style !== 'glass' ? 'on' : ''}" data-act="style" data-v="solid">Solid</button><button class="${st.style === 'glass' ? 'on' : ''}" data-act="style" data-v="glass">Glass</button></div></div>
-    ${st.style === 'glass' ? `${rng('Transparency', 'glassT', 0, 100, st.glassT)}${rng('Blur', 'glassBlur', 0, 100, st.glassBlur)}` : '<p class="small muted pad0">Glass makes menus, cards and bars see-through, so your background shows through.</p>'}
-    <div class="swatches">${PRESETS.map((p) => `<button class="swatch ${st.theme === p.id ? 'on' : ''}" data-act="preset" data-v="${p.id}" style="--b:${p.bg};--a:${p.accent};--c:${p.chord}"><i></i><span>${p.name}</span></button>`).join('')}</div>
-    <div class="kv"><label>Background picture</label><div class="btnrow tight inl"><label class="btn sm file">${ico('img')} ${S.bgData && st.bgImage ? 'Change' : 'Choose'}<input type="file" accept="image/*" data-bgfile></label>${S.bgData && st.bgImage ? '<button class="btn sm danger" data-act="bg-clear">Remove</button>' : ''}</div></div>
-    ${S.bgData && st.bgImage ? `${rng('Darken picture', 'bgDim', 0, 95, st.bgDim)}${rng('Blur picture', 'bgBlur', 0, 100, st.bgBlur)}` : ''}
-    <p class="small muted pad0">Make any colour you like. Every slider shows its percentage.</p>
-    ${colorSliders('bg', 'Background')}${colorSliders('accent', 'Highlights and buttons')}${colorSliders('chord', 'Chords')}
-    <div class="kv"><label>Soften colours for the eyes</label><button class="sw ${st.soften !== false ? 'on' : ''}" data-act="sw" data-k="soften" aria-label="toggle"></button></div>
-    <p class="small muted pad0">Softening keeps backgrounds dark and highlights gentle. Turn it off to use the full colour range.</p>
-  </details>
-  <details class="card acc" data-acc="display" ${S.ui.acc['display'] ? 'open' : ''}><summary><span><h3>Display</h3><span class="accsub">Text size, chords, PDFs, scrolling</span></span><i class="accarrow">${ico('chev')}</i></summary>
-    ${rng('Text size', 'fontPct', 68, 179, Math.round(st.fontSize / 19 * 100))}
-    <div class="kv"><label>Chords as</label><div class="seg"><button class="${st.mode === 'letters' ? 'on' : ''}" data-act="mode" data-m="letters">Letters</button><button class="${st.mode === 'numbers' ? 'on' : ''}" data-act="mode" data-m="numbers">Numbers</button></div></div>
-    <div class="kv"><label>Change chords inside PDFs with the key</label><button class="sw ${st.pdfSmart !== false ? 'on' : ''}" data-act="sw" data-k="pdfSmart" aria-label="toggle"></button></div>
-    <div class="kv"><label>Dim PDFs for dark mode</label><button class="sw ${st.invertPdf ? 'on' : ''}" data-act="sw" data-k="invertPdf" aria-label="toggle"></button></div>
-    <div class="kv"><label>Keep screen awake</label><button class="sw ${st.wake ? 'on' : ''}" data-act="sw" data-k="wake" aria-label="toggle"></button></div>
-    ${rng('Auto-scroll speed', 'speedPct', 20, 100, st.scrollSpeed * 20, { step: 20 })}
-  </details>
+<section class="card"><h3>Look and feel</h3>
+    <a class="row" href="#/appearance"><span class="rt"><span class="t">Appearance</span><span class="a">Themes, colours, background picture</span></span>${ico('chev', 'dim')}</a>
+    <a class="row" href="#/display"><span class="rt"><span class="t">Display</span><span class="a">Text size, chords, PDFs, scrolling</span></span>${ico('chev', 'dim')}</a></section>
   <section class="card"><h3>Storage</h3><div class="btnrow tight"><button class="btn" data-act="free-space">Free up space</button><button class="btn" data-act="check-update">Check for update</button></div><p class="small muted">Works fully offline. Bluetooth page-turner pedals work (Page Up / Page Down).</p></section>
   ${aboutCard()}`;
+}
+const accSec = (key, title, sub, body) => `<details class="card acc" data-acc="${key}" ${S.ui.acc[key] ? 'open' : ''}><summary><span><h3>${title}</h3><span class="accsub">${sub}</span></span><i class="accarrow">${ico('chev')}</i></summary>${body}</details>`;
+function subHeader(title) { return `<header class="top"><a class="ibtn" href="#/settings" aria-label="Back">${ico('back')}</a><h1 class="mid">${title}</h1></header>`; }
+function viewAppearance() {
+  const st = S.settings; S.ui.acc = S.ui.acc || {};
+  return `${subHeader('Appearance')}
+  <div class="apprev" aria-label="Preview"><div class="pv-top"><b>Preview</b><i class="bd key">G</i></div><div class="pv-chords"><span>G</span><span>C</span><span>D</span></div><div class="pv-lyric">Amazing grace, how sweet the sound</div><div class="pv-row"><span class="btn sm primary">Button</span><span class="pv-hl">Highlight</span></div></div>
+  ${accSec('ap-theme', 'Themes', 'Ready-made colour sets', `    <div class="swatches">${PRESETS.map((p) => `<button class="swatch ${st.theme === p.id ? 'on' : ''}" data-act="preset" data-v="${p.id}" style="--b:${p.bg};--a:${p.accent};--c:${p.chord}"><i></i><span>${p.name}</span></button>`).join('')}</div>`)}
+  ${accSec('ap-style', 'Style', st.style === 'glass' ? 'Glass' : 'Solid', `    <div class="kv"><label>Style</label><div class="seg"><button class="${st.style !== 'glass' ? 'on' : ''}" data-act="style" data-v="solid">Solid</button><button class="${st.style === 'glass' ? 'on' : ''}" data-act="style" data-v="glass">Glass</button></div></div>
+    ${st.style === 'glass' ? `${rng('Transparency', 'glassT', 0, 100, st.glassT)}${rng('Blur', 'glassBlur', 0, 100, st.glassBlur)}` : '<p class="small muted pad0">Glass makes menus, cards and bars see-through, so your background shows through.</p>'}`)}
+  ${accSec('ap-bg', 'Background picture', S.bgData && st.bgImage ? 'On' : 'None', `    <div class="kv"><label>Background picture</label><div class="btnrow tight inl"><label class="btn sm file">${ico('img')} ${S.bgData && st.bgImage ? 'Change' : 'Choose'}<input type="file" accept="image/*" data-bgfile></label>${S.bgData && st.bgImage ? '<button class="btn sm danger" data-act="bg-clear">Remove</button>' : ''}</div></div>
+    ${S.bgData && st.bgImage ? `${rng('Darken picture', 'bgDim', 0, 95, st.bgDim)}${rng('Blur picture', 'bgBlur', 0, 100, st.bgBlur)}` : ''}`)}
+  ${accSec('ap-colors', 'Custom colours', 'Background, highlights, chords', `    <p class="small muted pad0">Make any colour you like. Every slider shows its percentage.</p>
+    ${colorSliders('bg', 'Background')}${colorSliders('accent', 'Highlights and buttons')}${colorSliders('chord', 'Chords')}`)}
+  ${accSec('ap-soft', 'Eye comfort', st.soften !== false ? 'Softened' : 'Full colour range', `    <div class="kv"><label>Soften colours for the eyes</label><button class="sw ${st.soften !== false ? 'on' : ''}" data-act="sw" data-k="soften" aria-label="toggle"></button></div>
+    <p class="small muted pad0">Softening keeps backgrounds dark and highlights gentle. Turn it off to use the full colour range.</p>`)}`;
+}
+function viewDisplay() {
+  const st = S.settings; S.ui.acc = S.ui.acc || {};
+  return `${subHeader('Display')}
+  ${accSec('dp-size', 'Text size', Math.round(st.fontSize / 19 * 100) + '%', `    ${rng('Text size', 'fontPct', 68, 179, Math.round(st.fontSize / 19 * 100))}`)}
+  ${accSec('dp-chords', 'Chords and PDFs', st.mode === 'numbers' ? 'Numbers' : 'Letters', `    <div class="kv"><label>Chords as</label><div class="seg"><button class="${st.mode === 'letters' ? 'on' : ''}" data-act="mode" data-m="letters">Letters</button><button class="${st.mode === 'numbers' ? 'on' : ''}" data-act="mode" data-m="numbers">Numbers</button></div></div>
+    <div class="kv"><label>Change chords inside PDFs with the key</label><button class="sw ${st.pdfSmart !== false ? 'on' : ''}" data-act="sw" data-k="pdfSmart" aria-label="toggle"></button></div>
+    <div class="kv"><label>Dim PDFs for dark mode</label><button class="sw ${st.invertPdf ? 'on' : ''}" data-act="sw" data-k="invertPdf" aria-label="toggle"></button></div>`)}
+  ${accSec('dp-scroll', 'Screen and scrolling', 'Keep awake, auto-scroll speed', `    <div class="kv"><label>Keep screen awake</label><button class="sw ${st.wake ? 'on' : ''}" data-act="sw" data-k="wake" aria-label="toggle"></button></div>
+    ${rng('Auto-scroll speed', 'speedPct', 20, 100, st.scrollSpeed * 20, { step: 20 })}`)}`;
 }
 async function paintSettingsAsync() {
   try { const e = await navigator.storage.estimate(); const u = $('#usage'); if (u) u.textContent = fmtBytes(e.usage || 0); } catch (_) { const u = $('#usage'); if (u) u.textContent = '—'; }

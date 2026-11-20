@@ -362,3 +362,12 @@ details.acc > summary h3 { margin: 0; }
 details.acc[open] > summary .accarrow { transform: rotate(90deg); }
 details.acc[open] > summary { margin-bottom: 8px; }
 input.rng, .rngrow input[type=range] { touch-action: pan-y; }
+
+/* live colour preview (Appearance page) */
+.apprev { position: sticky; top: calc(var(--st, 0px) + 4px); z-index: 6; margin: 4px 0 12px; padding: 10px 14px 12px; border-radius: 16px; background: var(--card); border: 1px solid var(--accent); box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.pv-top { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.pv-chords { display: flex; gap: 38px; margin-top: 6px; color: var(--chord); font-weight: 700; font-size: 17px; }
+.pv-lyric { color: var(--text); font-size: 17px; margin-top: 1px; }
+.pv-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+.pv-hl { padding: 3px 10px; border-radius: 8px; background: var(--accent-bg); color: var(--accent); font-weight: 600; font-size: 13px; }
+.apprev { top: calc(var(--st, 0px) + 62px); background-color: var(--bg); background-image: linear-gradient(var(--card), var(--card)); }
