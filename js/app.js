@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '2.4.0', build: '2026-11-20' });
+const APP = Object.freeze({ name: 'Songbook', version: '2.4.1', build: '2026-11-20' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -811,7 +811,9 @@ function viewAppearance() {
 }
 function viewDisplay() {
   const st = S.settings; S.ui.acc = S.ui.acc || {};
+  const sample = { body: '[G]Amazing [C]grace, how [D]sweet the [G]sound\n[G]That saved a [Em]wretch like [D]me', key: 'G', fmt: 'text' };
   return `${subHeader('Display')}
+  <div class="apprev dprev" aria-label="Preview"><div class="pv-top"><b>Preview</b><i class="bd key">${st.mode === 'numbers' ? 'Numbers' : 'Letters'}</i></div><div class="sbody" style="--fs:${st.fontSize}px">${renderBody(sample, { shift: 0, capo: 0 })}</div></div>
   ${accSec('dp-size', 'Text size', Math.round(st.fontSize / 19 * 100) + '%', `    ${rng('Text size', 'fontPct', 68, 179, Math.round(st.fontSize / 19 * 100))}`)}
   ${accSec('dp-chords', 'Chords and PDFs', st.mode === 'numbers' ? 'Numbers' : 'Letters', `    <div class="kv"><label>Chords as</label><div class="seg"><button class="${st.mode === 'letters' ? 'on' : ''}" data-act="mode" data-m="letters">Letters</button><button class="${st.mode === 'numbers' ? 'on' : ''}" data-act="mode" data-m="numbers">Numbers</button></div></div>
     <div class="kv"><label>Change chords inside PDFs with the key</label><button class="sw ${st.pdfSmart !== false ? 'on' : ''}" data-act="sw" data-k="pdfSmart" aria-label="toggle"></button></div>
@@ -1109,6 +1111,7 @@ function onSlider(t) {
   else st[key] = v;
   t.style.setProperty('--p', ((v - +t.min) / ((+t.max - +t.min) || 1)) * 100 + '%');
   const out = $(`output[data-out="${key}"]`); if (out) out.textContent = v + '%';
+  const dv = $('.dprev .sbody'); if (dv) dv.style.setProperty('--fs', st.fontSize + 'px');
   applyTheme(); clearTimeout(colorT); colorT = setTimeout(saveSettings, 400);
 }
 async function setBgImage(file) {

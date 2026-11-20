@@ -371,3 +371,4 @@ input.rng, .rngrow input[type=range] { touch-action: pan-y; }
 .pv-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
 .pv-hl { padding: 3px 10px; border-radius: 8px; background: var(--accent-bg); color: var(--accent); font-weight: 600; font-size: 13px; }
 .apprev { top: calc(var(--st, 0px) + 62px); background-color: var(--bg); background-image: linear-gradient(var(--card), var(--card)); }
+.dprev .sbody { column-count: 1 !important; margin-top: 6px; } .dprev { max-height: 38vh; overflow: hidden; }
