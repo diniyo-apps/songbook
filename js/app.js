@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '2.3.3', build: '2026-11-20' });
+const APP = Object.freeze({ name: 'Songbook', version: '2.3.4', build: '2026-11-20' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -783,7 +783,7 @@ function viewSettings() {
     <div class="btnrow tight"><button class="btn primary" data-act="backup-now">${ico('share')} Back up now</button><label class="btn file">${ico('up')} Restore / import<input type="file" multiple data-import></label></div>
     ${isStandalone() ? '' : '<p class="small tip"><b>iPhone:</b> tap Share ▸ <b>Add to Home Screen</b>. <b>Android / desktop:</b> use the browser’s <b>Install</b> option.</p>'}
   </section>
-  <section class="card"><h3>Automatic safety copies</h3><p class="small muted">The app quietly keeps the 5 most recent copies of your whole library on this device, including one made before anything risky (import, restore, delete forever). Older copies are removed automatically.</p><div id="snaplist" class="snaplist"></div></section>
+  <details class="card acc" data-acc="snaps" ${S.ui.acc['snaps'] ? 'open' : ''}><summary><span><h3>Automatic safety copies</h3><span class="accsub">Last 5 copies · restore one</span></span><i class="accarrow">${ico('chev')}</i></summary><p class="small muted">The app quietly keeps the 5 most recent copies of your whole library on this device, including one made before anything risky (import, restore, delete forever). Older copies are removed automatically.</p><div id="snaplist" class="snaplist"></div></details>
   <section class="card"><h3>Trash</h3><a class="row" href="#/trash"><span class="rt"><span class="t">Deleted songs</span><span class="a">${trashed().length} in trash — restore any time</span></span>${ico('chev', 'dim')}</a></section>
   <details class="card acc" data-acc="appearance" ${S.ui.acc['appearance'] ? 'open' : ''}><summary><span><h3>Appearance</h3><span class="accsub">Theme, colours, background picture</span></span><i class="accarrow">${ico('chev')}</i></summary>
     <div class="kv"><label>Style</label><div class="seg"><button class="${st.style !== 'glass' ? 'on' : ''}" data-act="style" data-v="solid">Solid</button><button class="${st.style === 'glass' ? 'on' : ''}" data-act="style" data-v="glass">Glass</button></div></div>
