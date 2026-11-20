@@ -439,7 +439,7 @@
           <button class="btn sm" data-act="adm-pw" data-u="${p.id}">Temporary password</button>
           ${mine ? '' : `<button class="btn sm danger" data-act="adm-del" data-u="${p.id}">Delete</button>`}</div>`}
         ${p.status === 'active' || p.is_master ? roleSel : ''}</section>`;
-    }).join('') + `<div class="btnrow"><button class="btn" data-act="adm-team">Add a team</button></div><p class="small muted pad">Members read the shared songs. Leads can also add, change, hide and delete them for everyone.</p>`;
+    }).join('') + `<section class="card"><h3>Teams</h3>${adm.ts.map((t, i) => `<div class="kv"><label>${esc(t.name)}</label>${i === 0 ? '<span class="small muted">main team</span>' : `<button class="btn sm danger" data-act="adm-team-del" data-t="${t.id}" data-n="${esc(t.name)}">Remove</button>`}</div>`).join('')}</section><div class="btnrow"><button class="btn" data-act="adm-team">Add a team</button></div><p class="small muted pad">Members read the shared songs. Leads can also add, change, hide and delete them for everyone.</p>`;
   }
   async function edge(body) { return api('/functions/v1/admin-users', { method: 'POST', json: body }); }
   const admDo = async (fn, ok) => { try { await fn(); toast(ok); await loadAdmin(); } catch (e) { toast(e.message, 5000); } };
@@ -448,6 +448,7 @@
   A['adm-del'] = (el) => confirmBox('Delete this account?', 'They will no longer be able to sign in. Songs already on their phone stay there.', 'Delete', () => admDo(() => edge({ action: 'delete', uid: el.dataset.u }), 'Deleted'), true);
   A['adm-pw'] = (el) => { adm.pwFor = el.dataset.u; sheet(`<div class="sh-h">Temporary password</div><p class="small muted">Tell them this password in person. They should change it after signing in.</p><div class="field"><input id="tpw" value="${Math.random().toString(36).slice(2, 6)}${Math.random().toString(36).slice(2, 8)}A9"></div><div class="btnrow"><button class="btn" data-act="close-sheet">Cancel</button><button class="btn primary" data-act="adm-pw-go">Set</button></div>`); };
   A['adm-pw-go'] = () => { const v = $('#tpw').value; closeSheet(); admDo(() => edge({ action: 'set_password', uid: adm.pwFor, password: v }), 'Password set to: ' + v); };
+  A['adm-team-del'] = (el) => confirmBox('Remove the team "' + el.dataset.n + '"?', 'Everyone loses access to it. Only teams with no songs or sets can be removed.', 'Remove team', () => admDo(() => api('/rest/v1/rpc/admin_delete_team', { method: 'POST', json: { tid: el.dataset.t } }), 'Team removed'), true);
   A['adm-team'] = () => sheet(`<div class="sh-h">Add a team</div><div class="field"><input id="tname" placeholder="Team name"></div><div class="btnrow"><button class="btn" data-act="close-sheet">Cancel</button><button class="btn primary" data-act="adm-team-go">Add</button></div>`);
   A['adm-team-go'] = () => { const v = $('#tname').value.trim(); if (!v) return; closeSheet(); admDo(() => api('/rest/v1/rpc/admin_create_team', { method: 'POST', json: { team_name: v } }), 'Team added'); };
   document.addEventListener('change', (e) => {
