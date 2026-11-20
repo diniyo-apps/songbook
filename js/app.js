@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '2.2.0', build: '2026-11-20' });
+const APP = Object.freeze({ name: 'Songbook', version: '2.2.1', build: '2026-11-20' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -1153,7 +1153,7 @@ const A = {
   },
   'set-rename': (el) => { const set = setById(el.dataset.id); sheetCtx = { setId: set.id }; sheet(`<div class="sh-h">Rename set</div><div class="field"><input id="rn" value="${esc(set.name)}"></div><div class="btnrow"><button class="btn" data-act="close-sheet">Cancel</button><button class="btn primary" data-act="rename-go">Save</button></div>`); },
   'rename-go': async () => { const set = setById(sheetCtx.setId); set.name = $('#rn').value.trim() || set.name; await saveSet(set); closeSheet(); render(); },
-  'set-dup': async (el) => { const o = setById(el.dataset.id); const n = { ...JSON.parse(JSON.stringify(o)), id: uid(), name: o.name + ' copy' }; await saveSet(n); closeSheet(); go('#/set/' + encodeURIComponent(n.id)); },
+  'set-dup': async (el) => { const o = setById(el.dataset.id); const n = { ...JSON.parse(JSON.stringify(o)), cloud: null, id: uid(), name: o.name + ' copy' }; await saveSet(n); closeSheet(); go('#/set/' + encodeURIComponent(n.id)); },
   'set-del': (el) => { const id = el.dataset.id; confirmBox('Delete this set?', 'The songs stay in your songbook. Only the set is removed.', 'Delete set', async () => { await takeSnapshot('before delete', true); await DB.del('sets', id); S.sets = S.sets.filter((s) => s.id !== id); S.dirtySnap = true; markDirty(); go('#/sets'); }, true); },
   // song view
   'song-back': () => { const c = S.cur; if (c && c.setId && setById(c.setId)) go('#/set/' + encodeURIComponent(c.setId) + '?hl=' + c.idx); else go('#/songs'); },
@@ -1171,7 +1171,7 @@ const A = {
       <button class="row danger" data-act="song-trash"><span class="rt"><span class="t">Move to trash</span></span></button>`);
   },
   'song-addset': () => chooseSetSheet([S.cur.songId]),
-  'song-dup': async () => { const o = curSong(); const n = { ...o, id: uid(), title: o.title + ' copy', modified: now(), recs: o.recs ? JSON.parse(JSON.stringify(o.recs)) : undefined, ink: o.ink ? JSON.parse(JSON.stringify(o.ink)) : null }; if (o.fmt === 'pdf') { const b = await DB.get('blobs', o.pdfId); n.pdfId = uid(); if (b) await DB.put('blobs', { id: n.pdfId, data: b.data }); } await saveSong(n); closeSheet(); toast('Duplicated'); go('#/song/' + encodeURIComponent(n.id)); },
+  'song-dup': async () => { const o = curSong(); const n = { ...o, cloud: null, id: uid(), title: o.title + ' copy', modified: now(), recs: o.recs ? JSON.parse(JSON.stringify(o.recs)) : undefined, ink: o.ink ? JSON.parse(JSON.stringify(o.ink)) : null }; if (o.fmt === 'pdf') { const b = await DB.get('blobs', o.pdfId); n.pdfId = uid(); if (b) await DB.put('blobs', { id: n.pdfId, data: b.data }); } await saveSong(n); closeSheet(); toast('Duplicated'); go('#/song/' + encodeURIComponent(n.id)); },
   'song-trash': () => { const s = curSong(); confirmBox('Move to trash?', `"${s.title}" can be restored any time from Settings \u25b8 Trash.`, 'Move to trash', async () => { s.deleted = now(); await saveSong(s); toast('Moved to trash'); A['song-back'](); }, true); },
   'open-key': () => openKeySheet(),
   'shift': (el) => changeHolder((s, h) => {
