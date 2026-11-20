@@ -273,7 +273,7 @@
   H.songInfo = (s) => {
     if (!C.session) return '';
     let a, b = '', cls = '';
-    if (!s.cloud) { a = '\ud83d\udcf1 On this phone only'; b = isLead() && active() ? 'Not shared yet. Use "Add to shared library" below to share it with the team.' : 'Only you can see this song.'; }
+    if (!s.cloud) { a = 'Not shared \u00b7 only you have this song'; b = isLead() && active() ? 'Use "Add to shared library" below to share it with the team.' : 'It stays on this phone and is not shared with the team.'; }
     else {
       const c = s.cloud; const ed = edited(s);
       a = '\u2601 Shared with ' + esc(teamName(c.team)) + ' \u00b7 Version ' + c.ver + (c.at ? ' \u00b7 updated ' + dstr(c.at) : '') + (c.by ? ' by ' + esc(c.by) : '');
@@ -287,7 +287,7 @@
     if (!C.session) return '';
     const w = S.ui.where || 'all';
     const sh = S.songs.filter((s) => !s.deleted && s.cloud).length, lo = S.songs.filter((s) => !s.deleted && !s.cloud).length;
-    return `<div class="wherebar"><div class="seg">${[['all', 'All'], ['shared', '\u2601 Shared ' + sh], ['local', '\ud83d\udcf1 This phone ' + lo]].map(([v, l]) => `<button class="${w === v ? 'on' : ''}" data-act="cl-where" data-v="${v}">${l}</button>`).join('')}</div></div>`;
+    return `<div class="wherebar"><div class="seg">${[['all', 'All'], ['shared', '\u2601 Shared ' + sh], ['local', 'Not shared ' + lo]].map(([v, l]) => `<button class="${w === v ? 'on' : ''}" data-act="cl-where" data-v="${v}">${l}</button>`).join('')}</div></div>`;
   };
   H.songMenu = (s) => {
     if (!active()) return '';
@@ -369,7 +369,7 @@
     return `${wait}<section class="card" id="cloudcard"><h3>Shared songbook</h3>
       <div class="kv"><label>${esc(p.name || 'You')}</label><span class="small muted">${esc(p.email || '')}</span></div>
       <p class="small">${active() ? esc(roles.join(' · ') || 'Member') : p.status === 'pending' ? 'Waiting for an admin to approve your account.' : 'This account is switched off.'}</p>
-      <p class="small muted">${S.songs.filter((s) => !s.deleted && s.cloud).length} shared songs \u00b7 ${S.songs.filter((s) => !s.deleted && !s.cloud).length} only on this phone</p>
+      <p class="small muted">${S.songs.filter((s) => !s.deleted && s.cloud).length} shared songs \u00b7 ${S.songs.filter((s) => !s.deleted && !s.cloud).length} not shared (only you have them)</p>
       <p class="small muted" id="cloudstat">${C.busy ? 'Syncing…' : 'Last sync: ' + when(C.last)}</p>
       ${n ? `<p class="small" style="color:var(--warn)">${n} shared song${n > 1 ? 's have' : ' has'} an update that clashes with your edits. Open the song and choose.</p>` : ''}
       <div class="btnrow tight"><button class="btn primary" data-act="cl-sync">Sync now</button><button class="btn" data-act="cl-pw">Change password</button><button class="btn" data-act="cl-out">Sign out</button></div>
