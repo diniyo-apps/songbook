@@ -78,7 +78,7 @@
   const tagsOf = (s) => (Array.isArray(s.tags) ? s.tags : []).join(',');
   const sigOf = (s) => MD5.text(JSON.stringify([s.title || '', s.author || '', s.key || '', s.fmt || 'text', s.body || '', tagsOf(s), s.fmt === 'pdf' ? (s.hash || '') : '']));
   const edited = (s) => !!(s.cloud && s.cloud.base && sigOf(s) !== s.cloud.base);
-  const payload = (s) => ({ title: s.title || '', author: s.author || '', key: s.key || '', fmt: s.fmt || 'text', body: s.body || '', tags: Array.isArray(s.tags) ? s.tags : [], raw: s.raw || null, pdfFile: s.pdfFile || null });
+  const payload = (s) => ({ by: (C.profile && C.profile.name) || '', title: s.title || '', author: s.author || '', key: s.key || '', fmt: s.fmt || 'text', body: s.body || '', tags: Array.isArray(s.tags) ? s.tags : [], raw: s.raw || null, pdfFile: s.pdfFile || null });
   const setSig = (set) => MD5.text(JSON.stringify([set.name || '', (set.items || []).map((i) => { const sg = songById(i.songId); return sg && sg.cloud ? sg.cloud.id : i.songId; })]));
   const setEdited = (set) => !!(set.cloud && set.cloud.base && setSig(set) !== set.cloud.base);
   async function sha(buf) { const d = await crypto.subtle.digest('SHA-256', buf); return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join(''); }
@@ -88,7 +88,7 @@
     const d = rem.data || {};
     Object.assign(local, { title: d.title || '', author: d.author || '', key: d.key || '', fmt: d.fmt || 'text', body: d.body || '', tags: d.tags || [], raw: d.raw || local.raw || null });
     if (d.fmt === 'pdf') { local.pdfFile = d.pdfFile || local.pdfFile; if (pdfBuf) { local.pdfId = local.pdfId || uid(); local.hash = MD5.bytes(pdfBuf); } }
-    local.cloud = { id: rem.id, team: rem.team_id, ver: rem.version, base: sigOf(local), pdf: rem.pdf_path || null, hidden: !!rem.hidden };
+    local.cloud = { id: rem.id, team: rem.team_id, ver: rem.version, base: sigOf(local), pdf: rem.pdf_path || null, hidden: !!rem.hidden, at: rem.updated_at || 0, by: d.by || '' };
     local.deleted = 0;
   }
   async function putSong(song) { const c = { ...song }; delete c._buf; await DB.put('songs', c); }
@@ -120,7 +120,7 @@
       }
       let data = new Map();
       for (let i = 0; i < need.length; i += 30) {
-        const part = await api('/rest/v1/cloud_songs?id=in.(' + need.slice(i, i + 30).join(',') + ')&select=id,team_id,data,pdf_path,version,hidden,deleted');
+        const part = await api('/rest/v1/cloud_songs?id=in.(' + need.slice(i, i + 30).join(',') + ')&select=id,team_id,data,pdf_path,version,hidden,deleted,updated_at');
         part.forEach((p) => data.set(p.id, p));
       }
       if (need.length || S.songs.some((s) => s.cloud && !remote.has(s.cloud.id))) { await X.takeSnapshot('before shared update', true); take = true; }
@@ -222,11 +222,12 @@
     if (s.cloud) {
       const rows = await api('/rest/v1/cloud_songs?id=eq.' + s.cloud.id + '&version=eq.' + s.cloud.ver, { method: 'PATCH', headers: { Prefer: 'return=representation' }, json: { data: payload(s), pdf_path: path } });
       if (!rows || !rows.length) throw fail('Someone else changed this song first. Sync, then try again.', { conflict: true });
-      s.cloud.ver = rows[0].version;
+      s.cloud.ver = rows[0].version; s.cloud.at = rows[0].updated_at;
     } else {
       const rows = await api('/rest/v1/cloud_songs', { method: 'POST', headers: { Prefer: 'return=representation' }, json: { team_id: team, data: payload(s), pdf_path: path } });
-      s.cloud = { id: rows[0].id, team, ver: rows[0].version, hidden: false };
+      s.cloud = { id: rows[0].id, team, ver: rows[0].version, hidden: false, at: rows[0].updated_at };
     }
+    s.cloud.by = (C.profile && C.profile.name) || '';
     s.cloud.pdf = path; s.cloud.base = sigOf(s); delete s.cloud.incoming;
     await putSong(s);
   }
@@ -264,7 +265,28 @@
     if (s.cloud.incoming) return '<i class="bd warn">Update</i>';
     if (edited(s)) return '<i class="bd mine">Mine</i>';
     if (s.cloud.hidden) return '<i class="bd">Hidden</i>';
-    return '';
+    return '<i class="bd cloud" title="Shared">\u2601</i>';
+  };
+  const teamName = (id) => ((C.profile && C.profile.teams || []).find((x) => x.id === id) || {}).name || 'the team';
+  const dstr = (v) => { if (!v) return ''; const d = new Date(v); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); };
+  H.songInfo = (s) => {
+    if (!C.session) return '';
+    let a, b = '', cls = '';
+    if (!s.cloud) { a = '\ud83d\udcf1 On this phone only'; b = isLead() && active() ? 'Not shared yet. Use "Add to shared library" below to share it with the team.' : 'Only you can see this song.'; }
+    else {
+      const c = s.cloud; const ed = edited(s);
+      a = '\u2601 Shared with ' + esc(teamName(c.team)) + ' \u00b7 Version ' + c.ver + (c.at ? ' \u00b7 updated ' + dstr(c.at) : '') + (c.by ? ' by ' + esc(c.by) : '');
+      b = ed ? 'You have your own changes on this phone. ' + (isLead(c.team) ? 'Publish them to update everyone.' : 'Others do not see them.') : (isLead(c.team) ? 'You are a lead: changes you publish go to everyone.' : 'Your own edits stay on this phone only.');
+      if (c.incoming) b = 'The team published a newer version. Tap "Review shared update".';
+      if (c.hidden) b += ' Hidden from members.';
+    }
+    return `<div class="cl-info"><b>${a}</b><span>${b}</span></div>`;
+  };
+  H.whereBar = () => {
+    if (!C.session) return '';
+    const w = S.ui.where || 'all';
+    const sh = S.songs.filter((s) => !s.deleted && s.cloud).length, lo = S.songs.filter((s) => !s.deleted && !s.cloud).length;
+    return `<div class="wherebar"><div class="seg">${[['all', 'All'], ['shared', '\u2601 Shared ' + sh], ['local', '\ud83d\udcf1 This phone ' + lo]].map(([v, l]) => `<button class="${w === v ? 'on' : ''}" data-act="cl-where" data-v="${v}">${l}</button>`).join('')}</div></div>`;
   };
   H.songMenu = (s) => {
     if (!active()) return '';
@@ -300,8 +322,10 @@
   };
 
   const A = X.A;
+  A['cl-where'] = (el) => { S.ui.where = el.dataset.v; X.render(); };
   const cur = () => X.curSong();
-  A['cl-pub-song'] = () => { closeSheet(); const s = cur(); guard(() => publishSong(s), 'Shared with everyone'); };
+  A['cl-pub-song'] = () => { closeSheet(); const s = cur(); const nw = !s.cloud;
+    confirmBox(nw ? 'Add to the shared library?' : 'Publish your changes?', nw ? '"' + s.title + '" will be added for everyone in ' + teamName((leadTeams()[0] || {}).id) + '.' : 'Everyone will get your version of "' + s.title + '" the next time they sync. The old version is kept in history.', nw ? 'Add for everyone' : 'Publish', () => guard(() => publishSong(s), nw ? 'Added to the shared library' : 'Published to everyone')); };
   A['cl-hide-song'] = () => { const s = cur(); closeSheet(); const hide = !s.cloud.hidden;
     confirmBox(hide ? 'Hide this song from everyone?' : 'Show this song to everyone again?', hide ? 'Members will no longer see "' + s.title + '". You can show it again any time.' : 'Members will get this song back.', hide ? 'Hide' : 'Show', () => guard(async () => { await patchSong(s, { hidden: hide }); s.cloud.hidden = hide; await putSong(s); }, hide ? 'Hidden' : 'Visible again')); };
   A['cl-del-song'] = () => { const s = cur(); closeSheet();
@@ -317,7 +341,7 @@
   A['cl-use-shared'] = () => { const s = cur(); closeSheet(); guard(() => useShared(s), 'Using the shared version'); };
   async function useShared(s) {
     let r = s.cloud.incoming && s.cloud.incoming.rem;
-    if (!r) { const rows = await api('/rest/v1/cloud_songs?id=eq.' + s.cloud.id + '&select=id,team_id,data,pdf_path,version,hidden,deleted'); r = rows[0]; if (!r) throw fail('The shared song is gone.'); }
+    if (!r) { const rows = await api('/rest/v1/cloud_songs?id=eq.' + s.cloud.id + '&select=id,team_id,data,pdf_path,version,hidden,deleted,updated_at'); r = rows[0]; if (!r) throw fail('The shared song is gone.'); }
     let buf = null;
     if ((r.data || {}).fmt === 'pdf' && r.pdf_path) { const inc = await DB.get('blobs', 'in-' + s.cloud.id); buf = inc ? inc.data : await download(r.pdf_path); }
     await X.takeSnapshot('before reset to shared', true);
@@ -343,6 +367,7 @@
     return `<section class="card" id="cloudcard"><h3>Shared songbook</h3>
       <div class="kv"><label>${esc(p.name || 'You')}</label><span class="small muted">${esc(p.email || '')}</span></div>
       <p class="small">${active() ? esc(roles.join(' · ') || 'Member') : p.status === 'pending' ? 'Waiting for an admin to approve your account.' : 'This account is switched off.'}</p>
+      <p class="small muted">${S.songs.filter((s) => !s.deleted && s.cloud).length} shared songs \u00b7 ${S.songs.filter((s) => !s.deleted && !s.cloud).length} only on this phone</p>
       <p class="small muted" id="cloudstat">${C.busy ? 'Syncing…' : 'Last sync: ' + when(C.last)}</p>
       ${n ? `<p class="small" style="color:var(--warn)">${n} shared song${n > 1 ? 's have' : ' has'} an update that clashes with your edits. Open the song and choose.</p>` : ''}
       <div class="btnrow tight"><button class="btn primary" data-act="cl-sync">Sync now</button><button class="btn" data-act="cl-pw">Change password</button><button class="btn" data-act="cl-out">Sign out</button></div>

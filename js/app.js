@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '2.0.3', build: '2026-11-20' });
+const APP = Object.freeze({ name: 'Songbook', version: '2.1.0', build: '2026-11-20' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -311,6 +311,7 @@ function viewSongs() {
     <div class="seg">${['all', 'text', 'pdf'].map((f) => `<button class="${S.ui.filter === f ? 'on' : ''}" data-act="filter" data-v="${f}">${{ all: 'All', text: 'Chords', pdf: 'PDF' }[f]}</button>`).join('')}</div>
     <select id="sort" aria-label="Sort"><option value="title" ${S.ui.sort === 'title' ? 'selected' : ''}>A–Z</option><option value="author" ${S.ui.sort === 'author' ? 'selected' : ''}>Artist</option><option value="recent" ${S.ui.sort === 'recent' ? 'selected' : ''}>Recent</option></select>
   </div>
+  ${X.hooks.whereBar ? X.hooks.whereBar() : ''}
   <div id="list"></div>
   <div id="selbar"></div>
   ${n === 0 ? '' : ''}`;
@@ -323,6 +324,7 @@ function groupLetter(s) {
 function filteredSongs() {
   const q = norm(S.ui.q);
   let arr = live().filter((s) => S.ui.filter === 'all' || (S.ui.filter === 'pdf') === (s.fmt === 'pdf'));
+  if (S.ui.where === 'shared') arr = arr.filter((s) => s.cloud); else if (S.ui.where === 'local') arr = arr.filter((s) => !s.cloud);
   if (q) arr = arr.filter((s) => norm(s.title).includes(q) || norm(s.author).includes(q) || (s.fmt === 'text' && norm(s.body).includes(q)));
   const cmp = (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
   if (S.ui.sort === 'recent') arr.sort((a, b) => b.modified - a.modified);
@@ -1158,7 +1160,7 @@ const A = {
   'song-edit': () => go('#/edit/' + encodeURIComponent(S.cur.songId)),
   'song-more': () => {
     const s = curSong();
-    sheet(`<div class="sh-h">${esc(s.title)}</div>
+    sheet(`<div class="sh-h">${esc(s.title)}</div>${X.hooks.songInfo ? X.hooks.songInfo(s) : ''}
       <button class="row" data-act="share-song"><span class="rt"><span class="t">Share to the band…</span></span></button>
       <button class="row" data-act="stage"><span class="rt"><span class="t">Stage mode</span></span></button>
       ${s.fmt === 'pdf' ? '<button class="row" data-act="pdf-to-text"><span class="rt"><span class="t">Make editable text copy</span><span class="a">Chords become real text you can transpose and edit</span></span></button>' : ''}

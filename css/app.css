@@ -347,3 +347,7 @@ body.hasrec.hasnav .songpage { padding-bottom: calc(262px + var(--sb)); }
 .bd.warn { background: rgba(232,179,107,.18); color: var(--warn); }
 .bd.mine { background: rgba(127,208,162,.15); color: var(--ok); }
 .cl-banner { border-color: var(--warn); }
+.cl-info { margin: 0 0 8px; padding: 10px 12px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 3px; font-size: 13.5px; }
+.cl-info b { color: var(--text); font-weight: 600; } .cl-info span { color: var(--muted); }
+.bd.cloud { background: rgba(134,180,245,.12); color: var(--accent); padding: 3px 7px; }
+.wherebar { margin: 0 0 10px; } .wherebar .seg { width: 100%; } .wherebar .seg button { flex: 1; padding: 7px 4px; font-size: 13.5px; }
