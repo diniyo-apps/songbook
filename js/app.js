@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '2.4.1', build: '2026-11-20' });
+const APP = Object.freeze({ name: 'Songbook', version: '2.5.0', build: '2026-11-20' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
