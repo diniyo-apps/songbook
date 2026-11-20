@@ -103,7 +103,7 @@
       await loadProfile();
       if (!active()) { C.busy = false; paintStatus(); if (manual) toast(C.profile.status === 'pending' ? 'Still waiting for approval' : 'This account is switched off'); gateRefresh(); return; }
       closeGate();
-      if (C.profile.is_admin) { try { const pp = await api('/rest/v1/profiles?status=eq.pending&select=id'); C.pending = pp.length; } catch (e) {} } else C.pending = 0;
+      if (C.profile.is_admin) { try { const pp = await api('/rest/v1/profiles?status=eq.pending&select=id'); C.pending = pp.length; const rq = await api('/rest/v1/member_requests?status=eq.pending&select=id'); C.reqs = rq.length; } catch (e) {} } else { C.pending = 0; C.reqs = 0; }
       const teams = (C.profile.teams || []).map((t) => t.id);
       let rs = [], rsets = [];
       for (const t of teams) {
@@ -427,7 +427,8 @@
     leadTeams().forEach((t) => roles.push('Lead · ' + t.name));
     (p.teams || []).filter((t) => t.role !== 'lead').forEach((t) => roles.push('Member · ' + t.name));
     const n = conflicts();
-    const wait = isAdmin() && C.pending ? `<a class="banner" href="#/admin"><div><b>${C.pending} ${C.pending === 1 ? 'person is' : 'people are'} waiting for approval</b><span>Tap to review</span></div>${ico('chev')}</a>` : '';
+    const bits = []; if (C.pending) bits.push(C.pending + (C.pending === 1 ? ' person is' : ' people are') + ' waiting for approval'); if (C.reqs) bits.push(C.reqs + (C.reqs === 1 ? ' request' : ' requests') + ' from leads');
+    const wait = isAdmin() && bits.length ? `<a class="banner" href="#/admin"><div><b>${bits.join(' \u00b7 ')}</b><span>Tap to review</span></div>${ico('chev')}</a>` : '';
     return `${wait}<section class="card" id="cloudcard"><h3>Shared songbook</h3>
       <div class="kv"><label>${esc(p.name || 'You')}</label><span class="small muted">${esc(p.email || '')}</span></div>
       <p class="small">${active() ? esc(roles.join(' · ') || 'Member') : p.status === 'pending' ? 'Waiting for an admin to approve your account.' : 'This account is switched off.'}</p>
@@ -437,6 +438,7 @@
       <div class="btnrow tight"><button class="btn primary" data-act="cl-sync">Sync now</button><button class="btn" data-act="cl-pw">Change password</button><button class="btn" data-act="cl-out">Sign out</button></div>
       ${isLead() ? `<div class="btnrow tight"><button class="btn" data-act="cl-choose">Choose songs or sets to share…</button><button class="btn" data-act="cl-pub-all">Add all my new songs</button></div>` : ''}
       ${isAdmin() ? `<div class="btnrow tight"><a class="btn" href="#/admin">Manage people</a></div>` : ''}
+      ${isLead() ? `<div class="btnrow tight"><a class="btn" href="#/team">Team members and requests</a></div>` : ''}
     </section>`;
   };
   function paintStatus() { const e = $('#cloudstat'); if (e) e.textContent = C.busy ? 'Syncing…' : 'Last sync: ' + when(C.last); }
@@ -550,15 +552,21 @@
   };
   async function loadAdmin() {
     try {
-      const [ps, ms, ts] = await Promise.all([api('/rest/v1/profiles?select=*&order=created_at'), api('/rest/v1/memberships?select=user_id,team_id,role'), api('/rest/v1/teams?select=id,name&order=created_at')]);
-      adm = { ps, ms, ts }; C.pending = ps.filter((x) => x.status === 'pending').length; paintAdmin();
+      const [ps, ms, ts, rq] = await Promise.all([api('/rest/v1/profiles?select=*&order=created_at'), api('/rest/v1/memberships?select=user_id,team_id,role'), api('/rest/v1/teams?select=id,name&order=created_at'), api('/rest/v1/member_requests?status=eq.pending&select=*&order=created_at')]);
+      adm = { ps, ms, ts }; C.pending = ps.filter((x) => x.status === 'pending').length; adm.rq = rq || []; C.reqs = adm.rq.length; paintAdmin();
     } catch (e) { const b = $('#admbox'); if (b) b.innerHTML = `<p class="muted pad">Could not load: ${esc(e.message)}</p>`; }
   }
   function paintAdmin() {
     const b = $('#admbox'); if (!b || !adm) return;
     const order = { pending: 0, active: 1, inactive: 2 };
     const ps = adm.ps.slice().sort((a, c) => (order[a.status] - order[c.status]) || String(a.name).localeCompare(c.name));
-    b.innerHTML = ps.map((p) => {
+    const tn = (id) => ((adm.ts.find((x) => x.id === id) || {}).name || 'team');
+    const pn = (id) => ((adm.ps.find((x) => x.id === id) || {}).name || 'A lead');
+    const reqCard = (adm.rq && adm.rq.length) ? `<section class="card"><h3>Requests from leads</h3>${adm.rq.map((r) => {
+      const who = r.kind === 'add' ? esc(r.target_name || r.target_email) + ' (' + esc(r.target_email) + ')' : esc(pn(r.target_user));
+      const what = r.kind === 'add' ? 'add ' + who + ' to ' + esc(tn(r.team_id)) : (r.kind === 'activate' ? 'switch ON the account of ' : 'switch OFF the account of ') + who;
+      return `<div class="req"><p><b>${esc(pn(r.requested_by))}</b> asks to ${what}.${r.note ? ` <span class="muted">\u201c${esc(r.note)}\u201d</span>` : ''}</p>${r.kind === 'deactivate' ? '<p class="small muted">Switching off an account stops it for all teams.</p>' : ''}<div class="btnrow tight"><button class="btn sm primary" data-act="req-go" data-id="${r.id}" data-v="1">Approve</button><button class="btn sm" data-act="req-go" data-id="${r.id}" data-v="0">Decline</button></div></div>`; }).join('')}</section>` : '';
+    b.innerHTML = reqCard + ps.map((p) => {
       const mine = p.id === C.session.user.id;
       const roleSel = adm.ts.map((t) => { const m = adm.ms.find((x) => x.user_id === p.id && x.team_id === t.id); const v = m ? m.role : 'none';
         return `<div class="kv"><label>${esc(t.name)}</label><select data-adm-role data-u="${p.id}" data-t="${t.id}" ${p.is_master ? 'disabled' : ''}><option value="none" ${v === 'none' ? 'selected' : ''}>No access</option><option value="user" ${v === 'user' ? 'selected' : ''}>Member</option><option value="lead" ${v === 'lead' ? 'selected' : ''}>Lead</option></select></div>`; }).join('');
@@ -606,6 +614,51 @@
     const s = e.target.closest && e.target.closest('[data-adm-role]'); if (!s) return;
     admDo(() => api('/rest/v1/rpc/admin_set_role', { method: 'POST', json: { uid: s.dataset.u, tid: s.dataset.t, new_role: s.value } }), 'Updated');
   });
+
+  A['req-go'] = (el) => {
+    const r = (adm.rq || []).find((x) => x.id === el.dataset.id); if (!r) return; const yes = el.dataset.v === '1';
+    const done = () => api('/rest/v1/rpc/admin_decide_request', { method: 'POST', json: { rid: r.id, approve: yes } });
+    if (!yes) { admDo(done, 'Declined'); return; }
+    const run = () => admDo(async () => {
+      if (r.kind === 'add') {
+        const p = adm.ps.find((x) => String(x.email).toLowerCase() === String(r.target_email).toLowerCase());
+        if (!p) throw new Error('No account with that email yet. Ask them to create an account first, then approve.');
+        await api('/rest/v1/rpc/admin_set_role', { method: 'POST', json: { uid: p.id, tid: r.team_id, new_role: 'user' } });
+        if (p.status !== 'active') await edge({ action: 'set_status', uid: p.id, status: 'active' });
+      } else await edge({ action: 'set_status', uid: r.target_user, status: r.kind === 'activate' ? 'active' : 'inactive' });
+      await done();
+    }, 'Approved');
+    if (r.kind === 'deactivate') confirmBox('Switch off this account?', 'They will be signed out of every team. You can switch them on again later.', 'Switch off', run, true); else run();
+  };
+
+  /* ---------- lead: team members and requests ---------- */
+  let tv = null;
+  H.viewTeam = () => {
+    if (!isLead()) return '<header class="top"><a class="ibtn" href="#/settings">' + ico('back') + '</a><h1 class="mid">Team</h1></header><p class="muted pad">Leads only.</p>';
+    setTimeout(loadTeam, 0);
+    return `<header class="top"><a class="ibtn" href="#/settings" aria-label="Back">${ico('back')}</a><h1 class="mid">Team members</h1></header><div id="tmbox"><p class="muted pad">Loading\u2026</p></div>`;
+  };
+  async function loadTeam() {
+    try {
+      const out = [];
+      for (const t of leadTeams()) out.push({ t, ms: await api('/rest/v1/rpc/lead_team_members', { method: 'POST', json: { tid: t.id } }) });
+      const rq = await api('/rest/v1/member_requests?select=*&order=created_at.desc&limit=30');
+      tv = { out, rq }; paintTeam();
+    } catch (e) { const b = $('#tmbox'); if (b) b.innerHTML = `<p class="muted pad">Could not load: ${esc(e.message)}</p>`; }
+  }
+  function paintTeam() {
+    const b = $('#tmbox'); if (!b || !tv) return; const me = C.session.user.id;
+    const stc = { active: '<i class="bd key">Active</i>', pending: '<i class="bd warn">Pending</i>', inactive: '<i class="bd">Off</i>' };
+    const name = (id) => { for (const g of tv.out) { const m = g.ms.find((x) => x.user_id === id); if (m) return m.name; } return 'Someone'; };
+    b.innerHTML = tv.out.map(({ t, ms }) => `<section class="card"><h3>${esc(t.name)} \u00b7 ${ms.length} people</h3>${ms.map((m) => `<div class="kv tm"><label><b>${esc(m.name || '(no name)')}</b>${m.user_id === me ? ' \u00b7 you' : ''}<br><span class="small muted">${esc(m.email)}</span></label><span>${m.role === 'lead' ? '<i class="bd mine">Lead</i> ' : ''}${stc[m.status] || ''}</span></div>${m.user_id === me ? '' : `<div class="btnrow tight"><button class="btn sm" data-act="tm-req" data-t="${t.id}" data-u="${m.user_id}" data-k="${m.status === 'inactive' ? 'activate' : 'deactivate'}" data-n="${esc(m.name)}">${m.status === 'inactive' ? 'Ask admin to switch on' : 'Ask admin to switch off'}</button></div>`}`).join('')}<div class="btnrow"><button class="btn primary" data-act="tm-add" data-t="${t.id}">Ask admin to add someone</button></div></section>`).join('') +
+      `<section class="card"><h3>Your requests</h3>${tv.rq.length ? tv.rq.map((r) => `<div class="kv"><label>${r.kind === 'add' ? 'Add ' + esc(r.target_name || r.target_email) : (r.kind === 'activate' ? 'Switch on ' : 'Switch off ') + esc(name(r.target_user))}<br><span class="small muted">${new Date(r.created_at).toLocaleDateString()}</span></label>${{ pending: '<i class="bd warn">Waiting</i>', approved: '<i class="bd key">Approved</i>', declined: '<i class="bd">Declined</i>' }[r.status]}</div>`).join('') : '<p class="small muted">No requests yet. Only an admin can add people or switch accounts on or off.</p>'}</section>`;
+  }
+  const sendReq = async (body, ok) => { try { await api('/rest/v1/rpc/lead_create_request', { method: 'POST', json: body }); closeSheet(); toast(ok); await loadTeam(); } catch (e) { toast(e.message, 5000); } };
+  A['tm-req'] = (el) => { const k = el.dataset.k, u = el.dataset.u, t = el.dataset.t, n = el.dataset.n;
+    sheet(`<div class="sh-h">Ask admin to switch ${k === 'activate' ? 'on' : 'off'}</div><p class="small muted">${esc(n)}${k === 'deactivate' ? ' will be switched off in all teams if an admin approves.' : ' will be switched on if an admin approves.'}</p><div class="field"><label>Note for the admin (optional)</label><input id="rq-note" maxlength="300"></div><div class="btnrow"><button class="btn" data-act="close-sheet">Cancel</button><button class="btn primary" data-act="tm-req-go" data-t="${t}" data-u="${u}" data-k="${k}">Send request</button></div>`); };
+  A['tm-req-go'] = (el) => sendReq({ tid: el.dataset.t, req_kind: el.dataset.k, person_email: null, person_uid: el.dataset.u, person_name: '', req_note: $('#rq-note').value }, 'Request sent to the admins');
+  A['tm-add'] = (el) => sheet(`<div class="sh-h">Ask admin to add someone</div><p class="small muted">The person must already have created an account in the app. An admin will approve and add them to your team.</p><div class="field"><label>Their email</label><input id="rq-mail" type="email" autocapitalize="off"></div><div class="field"><label>Their name</label><input id="rq-name"></div><div class="field"><label>Note (optional)</label><input id="rq-note" maxlength="300"></div><div class="btnrow"><button class="btn" data-act="close-sheet">Cancel</button><button class="btn primary" data-act="tm-add-go" data-t="${el.dataset.t}">Send request</button></div>`);
+  A['tm-add-go'] = (el) => sendReq({ tid: el.dataset.t, req_kind: 'add', person_email: $('#rq-mail').value, person_uid: null, person_name: $('#rq-name').value, req_note: $('#rq-note').value }, 'Request sent to the admins');
 
   /* ---------- start up ---------- */
   let lastAuto = 0;

@@ -478,3 +478,4 @@ select { border-radius: 12px; background: linear-gradient(180deg, rgba(255,255,2
 .sp-prev { max-height: 30vh; overflow: auto; padding: 8px 10px; border-radius: 14px; background: rgba(0,0,0,.22); border: 1px solid var(--line); color: var(--text); }
 .sheet textarea { width: 100%; }
 .selbar { flex-wrap: wrap; }
+.req { padding: 10px 0; border-bottom: 1px solid var(--line); } .req:last-child { border-bottom: 0; } .req p { margin: 0 0 4px; } .kv.tm label { line-height: 1.3; }
