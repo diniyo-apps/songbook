@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '2.3.4', build: '2026-11-20' });
+const APP = Object.freeze({ name: 'Songbook', version: '2.3.5', build: '2026-11-20' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -1368,3 +1368,19 @@ boot();
 })();
 
 document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.matches && d.matches('details[data-acc]') && window.SBX) { const u = window.SBX.S.ui; u.acc = u.acc || {}; u.acc[d.dataset.acc] = d.open; } }, true);
+
+// Accidental-tap guard: taps inside the Settings cards are ignored right after a scroll or a finger drag,
+// so scrolling (or stopping a scroll with a finger) can't change colours or sliders by mistake.
+(() => {
+  let lastScroll = 0, down = null, moved = false;
+  document.addEventListener('scroll', () => { lastScroll = Date.now(); }, { capture: true, passive: true });
+  document.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: Date.now() }; moved = false; }, { capture: true, passive: true });
+  document.addEventListener('pointermove', (e) => { if (down && (Math.abs(e.clientX - down.x) > 8 || Math.abs(e.clientY - down.y) > 8)) moved = true; }, { capture: true, passive: true });
+  const guard = (e) => {
+    const t = e.target; if (!t || !t.closest) return;
+    if (!t.closest('details.acc') || t.closest('summary')) return;
+    if (moved || Date.now() - lastScroll < 350) { e.stopImmediatePropagation(); e.preventDefault(); }
+  };
+  document.addEventListener('click', guard, true);
+  document.addEventListener('input', (e) => { const t = e.target; if (t && t.dataset && t.dataset.color && Date.now() - lastScroll < 350) { e.stopImmediatePropagation(); } }, true);
+})();
