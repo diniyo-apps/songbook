@@ -507,3 +507,7 @@ select { border-radius: 12px; background: linear-gradient(180deg, rgba(255,255,2
 .sheet.ly #ly-list{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch}
 .sheet.ly #ly-pager{margin:6px 0 0}.sheet.ly .ly-foot{margin-top:8px}
 .sheet.ly .ly-prevbox{flex:1;min-height:0}
+/* lyrics preview fills the screen */
+.sheet.ly .ly-prevbox{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.sheet.ly .ly-prevbox .sp-prev{flex:1;max-height:none;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch}
+.sheet.ly .ly-credit{margin:8px 2px 0}
