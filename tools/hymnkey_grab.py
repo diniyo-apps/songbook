@@ -16,7 +16,7 @@ ap.add_argument('--out', default='hymnkey_raw')
 ap.add_argument('--delay', type=float, default=1.5, help='seconds between requests')
 ap.add_argument('--test', action='store_true')
 ap.add_argument('--zip', action='store_true')
-ap.add_argument('--include', default='', help='only URLs containing this text')
+ap.add_argument('--include', default='/hymns/', help='only URLs containing this text (default: English hymn pages)')
 a = ap.parse_args()
 UA = 'SongbookGrabber/1.0 (personal worship songbook; polite, slow, honours robots.txt)'
 os.makedirs(a.out, exist_ok=True)
@@ -67,9 +67,7 @@ urls = [u for u in dict.fromkeys(urls) if urlparse(u).netloc == host and not re.
 if a.include: urls = [u for u in urls if a.include in u]
 open(os.path.join(a.out, '_all_urls.txt'), 'w').write('\n'.join(urls))
 print(len(urls), 'pages listed')
-# keep pages that look like hymn pages when the site has clear patterns, otherwise take all
-hy = [u for u in urls if re.search(r'hymn', u, re.I) and urlparse(u).path.strip('/').count('/') >= 1]
-todo = hy if len(hy) > 20 else urls
+todo = urls
 if a.test: todo = todo[:3]
 print(len(todo), 'to download')
 done = 0
