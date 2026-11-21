@@ -34,7 +34,7 @@ def chordfix(c): return c.strip().replace('♭', 'b').replace('♯', '#')
 def parse(page):
     t = re.sub(r'<script[\s\S]*?</script>', '', page); t = re.sub(r'<svg[\s\S]*?</svg>', '', t)
     url = (re.search(r'<!-- url: (.*?) -->', page) or [0, ''])[1]
-    title = html.unescape(re.sub(r'<[^>]+>', '', re.search(r'<h1[^>]*>(.*?)(?:<span|</h1>)', t, re.S).group(1))).strip()
+    title = html.unescape(re.sub(r'<[^>]+>', '', re.search(r'<h1[^>]*>(.*?)</h1>', t, re.S).group(1))).replace('Lyrics, chords, sheet music and accompaniment in any key', '').strip()
     words = re.search(r'<p class="mt-2 text-\[13px\][^"]*">(Words:.*?)</p>', t, re.S)
     words = html.unescape(re.sub(r'<[^>]+>', '', words.group(1))).strip() if words else ''
     meta = {}
