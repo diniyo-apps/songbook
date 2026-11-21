@@ -8,7 +8,8 @@
   async function load() {
     if (idx) return idx;
     const r = await fetch('lyrics/index.json'); if (!r.ok) throw new Error('bad');
-    idx = (await r.json()).map((a) => ({ id: a[0], t: a[1], w: a[2], k: a[3], bpm: a[4], l: a[5], y: a[6], n: norm(a[1] + ' ' + a[2]) }));
+    idx = (await r.json()).map((a) => ({ id: a[0], t: a[1], w: a[2], k: a[3], bpm: a[4], l: a[5], y: a[6], n: norm(a[1] + ' ' + a[2]), s: norm(a[1]) }));
+    idx.sort((a, b) => a.s < b.s ? -1 : a.s > b.s ? 1 : 0);
     return idx;
   }
   const filtered = () => {
@@ -18,13 +19,12 @@
   A['ly-open'] = async () => {
     st = { q: '', lic: 'PD', page: 0, sel: new Set(), loading: false };
     sheet(`<div class="sh-h">Find lyrics</div>
-      <p class="small muted">Free worship songs with chords, from the WorshipCommons library. Needs internet. Songs you add stay on this phone.</p>
       <div class="search"><input id="ly-q" type="search" placeholder="Search title or writer" autocomplete="off" enterkeyhint="search"></div>
-      <div class="seg wherebar" id="ly-lic"><button data-act="ly-lic" data-v="PD" class="on">Public domain</button><button data-act="ly-lic" data-v="FREE">+ Free for worship</button><button data-act="ly-lic" data-v="ALL">All</button></div>
-      <div id="ly-info" class="small muted" style="margin:8px 2px">Loading songs…</div>
+      <div class="seg wherebar" id="ly-lic"><button data-act="ly-lic" data-v="PD" class="on">Public domain</button><button data-act="ly-lic" data-v="FREE">+ Worship</button><button data-act="ly-lic" data-v="ALL">All</button></div>
+      <div id="ly-info" class="small muted" style="margin:6px 2px">Loading songs…</div>
       <div id="ly-list" class="pklist"></div>
       <div id="ly-pager" class="btnrow tight"></div>
-      <div class="btnrow"><button class="btn" data-act="close-sheet">Close</button><button class="btn primary" id="ly-add" data-act="ly-add" disabled>Add selected</button></div>`, { full: true });
+      <div class="btnrow ly-foot"><button class="btn" data-act="close-sheet">Close</button><button class="btn primary" id="ly-add" data-act="ly-add" disabled>Add selected</button></div>`, { full: true }); $('.sheet').classList.add('ly');
     let t = 0; $('#ly-q').addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; st.page = 0; paint(); }, 200); });
     try { await load(); paint(); } catch (e) { $('#ly-info').textContent = 'Could not load the song list. Check your internet and try again.'; }
   };
@@ -34,7 +34,7 @@
     const all = filtered(); const pages = Math.max(1, Math.ceil(all.length / PER)); if (st.page >= pages) st.page = pages - 1;
     const part = all.slice(st.page * PER, st.page * PER + PER);
     $('#ly-info').textContent = all.length ? `${all.length} song${all.length === 1 ? '' : 's'} · page ${st.page + 1} of ${pages}` : 'No songs match.';
-    $('#ly-list').innerHTML = part.map((s) => { const on = st.sel.has(s.id); return `<div class="row pick ly-row ${on ? 'sel' : ''}"><button class="cb ${on ? 'on' : ''}" data-act="ly-pick" data-id="${esc(s.id)}" aria-label="Select">${on ? ico('check') : ''}</button><button class="rt ly-rt" data-act="ly-view" data-id="${esc(s.id)}"><span class="t">${esc(s.t)}</span><span class="a">${esc(s.w)}</span></button><i class="bd ly-lic ${s.l}">${LICN[s.l]}</i>${s.k ? `<i class="bd key">${esc(s.k)}</i>` : ''}</div>`; }).join('');
+    $('#ly-list').innerHTML = part.map((s) => { const on = st.sel.has(s.id); return `<div class="row pick ly-row ${on ? 'sel' : ''}"><button class="cb ${on ? 'on' : ''}" data-act="ly-pick" data-id="${esc(s.id)}" aria-label="Select">${on ? ico('check') : ''}</button><button class="rt ly-rt" data-act="ly-view" data-id="${esc(s.id)}"><span class="t">${esc(s.t)}</span><span class="a">${esc(s.w)}</span></button>${s.l === 'PD' ? '' : `<i class="bd ly-lic ${s.l}">${s.l === 'WC' ? 'Worship' : s.l === 'CC' ? 'CC' : 'Permission'}</i>`}${s.k ? `<i class="bd key">${esc(s.k)}</i>` : ''}</div>`; }).join('');
     $('#ly-pager').innerHTML = pages > 1 ? `<button class="btn sm" data-act="ly-pg" data-d="-1" ${st.page ? '' : 'disabled'}>Previous</button><button class="btn sm" data-act="ly-pg" data-d="1" ${st.page < pages - 1 ? '' : 'disabled'}>Next</button>` : '';
     paintSel();
   }
@@ -49,7 +49,7 @@
   const credit = (d) => 'Source: WorshipCommons (worshipcommons.org)\nWriter: ' + (d.at || d.w || 'unknown') + (d.y ? ' (' + d.y + ')' : '') + '\nLicence: ' + (LICLONG[d.lic] || d.lic) + (d.lu ? '\n' + d.lu : '');
   A['ly-view'] = async (el) => {
     const id = el.dataset.id; const s = idx.find((x) => x.id === id);
-    sheet(`<div class="sh-h">${esc(s.t)}</div><p class="small muted">${esc(s.w)}</p><div id="ly-prev" class="muted small">Loading…</div><div class="btnrow"><button class="btn" data-act="ly-back">Back</button><button class="btn primary" data-act="ly-add1" data-id="${esc(id)}">Add to my songs</button></div>`, { full: true });
+    sheet(`<div class="sh-h">${esc(s.t)}</div><p class="small muted">${esc(s.w)}</p><div id="ly-prev" class="muted small">Loading…</div><div class="btnrow ly-foot"><button class="btn" data-act="ly-back">Back</button><button class="btn primary" data-act="ly-add1" data-id="${esc(id)}">Add to my songs</button></div>`, { full: true }); $('.sheet').classList.add('ly');
     try {
       const d = await get(id);
       $('#ly-prev').className = 'ly-prevbox';

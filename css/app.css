@@ -500,3 +500,10 @@ select { border-radius: 12px; background: linear-gradient(180deg, rgba(255,255,2
 .ly-lic.PD{color:#3ecf8e}.ly-lic.WC,.ly-lic.CC{color:var(--accent)}.ly-lic.OT{color:#f0b429}
 .ly-prevbox{flex:1;overflow:auto}.ly-credit{margin-top:12px}
 #ly-lic{margin-top:6px;display:flex}#ly-lic button{flex:1;padding:7px 6px;font-size:13px}
+/* Find lyrics uses the whole screen; the song list gets the space */
+.sheet.full.ly{height:100dvh;max-height:100dvh;border-radius:0;padding-top:calc(var(--st,0px) + 8px);padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+.sheet.ly .sh-h{margin:2px 0 6px;font-size:17px}
+.sheet.ly .search{margin:4px 0 6px}.sheet.ly .search input{height:42px}
+.sheet.ly #ly-list{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch}
+.sheet.ly #ly-pager{margin:6px 0 0}.sheet.ly .ly-foot{margin-top:8px}
+.sheet.ly .ly-prevbox{flex:1;min-height:0}
