@@ -98,10 +98,10 @@
   async function sync(manual) {
     if (C.busy) return; if (!C.session) return;
     if (!navigator.onLine) { if (manual) toast('You are offline. The shared library will update when you are back online.'); return; }
-    C.busy = true; paintStatus();
+    C.busy = true; paintStatus(); if (manual) prog('Checking the shared library…');
     try {
       await loadProfile();
-      if (!active()) { C.busy = false; paintStatus(); if (manual) toast(C.profile.status === 'pending' ? 'Still waiting for approval' : 'This account is switched off'); gateRefresh(); return; }
+      if (!active()) { C.busy = false; paintStatus(); progEnd(); if (manual) toast(C.profile.status === 'pending' ? 'Still waiting for approval' : 'This account is switched off'); gateRefresh(); return; }
       closeGate();
       if (C.profile.is_admin) { try { const pp = await api('/rest/v1/profiles?status=eq.pending&select=id'); C.pending = pp.length; const rq = await api('/rest/v1/member_requests?status=eq.pending&select=id'); C.reqs = rq.length; } catch (e) {} } else { C.pending = 0; C.reqs = 0; }
       // answers to my requests (leads)
@@ -133,14 +133,16 @@
         part.forEach((p) => data.set(p.id, p));
       }
       if (need.length || S.songs.some((s) => s.cloud && !remote.has(s.cloud.id))) { if (now() - (S.meta.lastSnap || 0) > 6 * 3600 * 1000) await X.takeSnapshot('before shared update', true); take = true; }
-      let added = 0, updated = 0, removed = 0, pdfDone = 0;
+      let added = 0, updated = 0, removed = 0, step = 0;
+      if (need.length) prog('Updating songs', 0, need.length);
       for (const id of need) {
+        prog('Updating songs', step++, need.length);
         const r = data.get(id); if (!r) continue;
         let l = S.songs.find((s) => s.cloud && s.cloud.id === id);
         let buf = null;
         const d = r.data || {};
         if (d.fmt === 'pdf' && r.pdf_path && !(l && l.cloud.pdf === r.pdf_path)) {
-          try { if (need.length > 3) toast('Downloading PDFs… ' + (++pdfDone), 1500); buf = await download(r.pdf_path); } catch (e) { if (e.offline) throw e; continue; }
+          try { buf = await download(r.pdf_path); } catch (e) { if (e.offline) throw e; continue; }
         }
         if (!l) {
           const twin = S.songs.find((s) => !s.cloud && !s.deleted && norm(s.title) === norm(d.title) && norm(s.author) === norm(d.author) && s.fmt === (d.fmt || 'text'));
@@ -198,9 +200,11 @@
       // sets can only be mapped once all songs exist: re-apply sets whose items were skipped
       C.last = now(); LS.set('sb_cloud_last', C.last);
       C.msg = '';
+      progEnd(added + updated + removed ? 'Library updated' : 'Up to date', true);
       if (manual || added || updated || removed) toast(added + updated + removed ? `Shared library updated: ${added} new, ${updated} changed, ${removed} removed` : 'Everything is up to date');
       const rn = route().name; if (['songs', 'sets', 'settings', 'trash'].includes(rn)) X.render();
     } catch (e) {
+      progEnd(e.offline ? 'You are offline' : 'Sync stopped', false);
       if (manual || !e.offline) toast(e.offline ? 'You are offline.' : 'Could not sync: ' + e.message, 4000);
     }
     C.busy = false; paintStatus();
@@ -361,7 +365,8 @@
   async function bulk(list, fn, label) {
     if (pubBusy) { toast('Please wait, another job is running'); return; }
     pubBusy = true; let ok = 0, bad = 0;
-    for (let i = 0; i < list.length; i++) { toast(label + ' ' + (i + 1) + ' of ' + list.length + '\u2026', 1500); try { await fn(list[i]); ok++; } catch (e) { bad++; if (e.offline) break; } }
+    for (let i = 0; i < list.length; i++) { prog(label, i, list.length); try { await fn(list[i]); ok++; } catch (e) { bad++; if (e.offline) break; } }
+    progEnd(bad ? 'Finished with problems' : 'Done', !bad);
     pubBusy = false; S.ui.select = null; toast(`${label} done: ${ok}${bad ? ', ' + bad + ' failed' : ''}`, 5000); X.render();
   }
   A['cl-sel-share'] = async () => {
@@ -450,6 +455,25 @@
       ${isLead() ? `<div class="btnrow tight"><a class="btn" href="#/team">Team members and requests</a></div>` : ''}
     </section>`;
   };
+  /* progress pill: indeterminate when total is missing, otherwise done/total */
+  let progT = 0;
+  function prog(label, done, total) {
+    clearTimeout(progT);
+    let b = document.getElementById('syncbar');
+    if (!b) { b = document.createElement('div'); b.id = 'syncbar'; b.className = 'syncbar'; b.setAttribute('role', 'status'); b.innerHTML = '<div class="sb-top"><span class="sb-l"></span><span class="sb-n"></span></div><div class="sb-track"><div class="sb-fill"></div></div>'; document.body.appendChild(b); void b.offsetWidth; }
+    b.className = 'syncbar on' + (total ? '' : ' ind');
+    b.querySelector('.sb-l').textContent = label;
+    b.querySelector('.sb-n').textContent = total ? Math.min(done + 1, total) + ' of ' + total : '';
+    b.querySelector('.sb-fill').style.width = total ? Math.round(done / total * 100) + '%' : '';
+  }
+  function progEnd(msg, ok) {
+    clearTimeout(progT); const b = document.getElementById('syncbar'); if (!b) return;
+    if (!msg) { b.className = 'syncbar'; return; }
+    b.className = 'syncbar on ' + (ok ? 'done' : 'err');
+    b.querySelector('.sb-l').textContent = (ok ? '\u2713 ' : '! ') + msg; b.querySelector('.sb-n').textContent = '';
+    b.querySelector('.sb-fill').style.width = '100%';
+    progT = setTimeout(() => { b.className = 'syncbar'; }, ok ? 1600 : 3200);
+  }
   function paintStatus() { const e = $('#cloudstat'); if (e) e.textContent = C.busy ? 'Syncing…' : 'Last sync: ' + when(C.last); }
   A['cl-sync'] = () => sync(true);
   A['cl-out'] = () => confirmBox('Sign out?', 'The songs stay on this phone. You will stop getting shared updates until you sign in again.', 'Sign out', () => { dropSession(); X.render(); toast('Signed out'); });
@@ -468,7 +492,8 @@
     confirmBox('Share with ' + teamName(tm) + '?', `${list.length} new song${list.length === 1 ? '' : 's'}${ed.length ? ' and ' + ed.length + ' changed' : ''} will be added to the shared library for everyone. This takes a few minutes for many PDFs.`, 'Share', async () => {
       if (pubBusy) return; pubBusy = true;
       let ok = 0, bad = 0; const all = list.concat(ed);
-      for (let i = 0; i < all.length; i++) { toast('Sharing ' + (i + 1) + ' of ' + all.length + '…', 1500); try { await publishSong(all[i], tm); ok++; } catch (e) { bad++; if (e.offline) break; } }
+      for (let i = 0; i < all.length; i++) { prog('Sharing songs', i, all.length); try { await publishSong(all[i], tm); ok++; } catch (e) { bad++; if (e.offline) break; } }
+      progEnd(bad ? 'Finished with problems' : 'Shared', !bad);
       pubBusy = false; toast(`Shared ${ok}${bad ? ', ' + bad + ' failed' : ''}`, 5000); X.render();
     });
   };
@@ -502,7 +527,8 @@
     const songs = chSongs(); const sets = ch.withSets ? (ch.all ? S.sets.slice() : S.sets.filter((s) => ch.sets.has(s.id))) : [];
     confirmBox('Share with ' + teamName(ch.team) + '?', `${songs.length} song${songs.length === 1 ? '' : 's'}${sets.length ? ' and ' + sets.length + ' set' + (sets.length === 1 ? '' : 's') : ''} will be added to the shared library for everyone.`, 'Share', async () => {
       if (pubBusy) return; pubBusy = true; let ok = 0, bad = 0, sok = 0;
-      for (let i = 0; i < songs.length; i++) { toast('Sharing song ' + (i + 1) + ' of ' + songs.length + '…', 1500); try { await publishSong(songs[i], ch.team); ok++; } catch (e) { bad++; if (e.offline) break; } }
+      for (let i = 0; i < songs.length; i++) { prog('Sharing songs', i, songs.length); try { await publishSong(songs[i], ch.team); ok++; } catch (e) { bad++; if (e.offline) break; } }
+      progEnd(bad ? 'Finished with problems' : 'Shared', !bad);
       for (const st of sets) { try { await publishSet(st, ch.team); sok++; } catch (e) { bad++; } }
       pubBusy = false; toast(`Shared ${ok} song${ok === 1 ? '' : 's'}${sets.length ? ' and ' + sok + ' set' + (sok === 1 ? '' : 's') : ''}${bad ? ', ' + bad + ' failed' : ''}`, 5000); X.render();
     });
