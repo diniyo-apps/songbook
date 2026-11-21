@@ -77,7 +77,8 @@ for i, u in enumerate(todo, 1):
     if os.path.exists(fp): continue
     if not ok(u): print('robots.txt says no:', u); continue
     try:
-        open(fp, 'w', encoding='utf-8').write('<!-- url: ' + u + ' -->\n' + get(u)); done += 1
+        pg = get(u); pg = re.sub(r'<script[\s\S]*?</script>|<svg[\s\S]*?</svg>|<style[\s\S]*?</style>', '', pg)  # smaller files
+        open(fp, 'w', encoding='utf-8').write('<!-- url: ' + u + ' -->\n' + pg); done += 1
         print('[%d/%d] %s' % (i, len(todo), u))
     except Exception as e: print('FAILED', u, e)
     time.sleep(a.delay)
