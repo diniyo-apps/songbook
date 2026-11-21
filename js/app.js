@@ -41,7 +41,7 @@ const ico = (n, c = '') => `<svg class="ic ${c}" viewBox="0 0 24 24" fill="none"
 
 // ───────────────────────── state ─────────────────────────
 // ── app identity (kept in code, not in any editable text/config file) ──
-const APP = Object.freeze({ name: 'Songbook', version: '2.10.0', build: '2026-11-21' });
+const APP = Object.freeze({ name: 'Songbook', version: '2.11.0', build: '2026-11-21' });
 const _CR = ['wqkgMjAyNiBTYWphbiBSYWphcmF0bmUsIHRyYWRpbmcgYXMgRGluaXlvIEFwcHMuIEFsbCByaWdodHMgcmVzZXJ2ZWQu'];
 const _CR_HASH = '2e420e98a4d40694f73204d27bb09fb1';
 function copyrightLine() {
@@ -305,7 +305,7 @@ function viewSongs() {
   const sel = S.ui.select;
   return `
   <header class="top"><h1>All Songs</h1><div class="acts">
-    <button class="ibtn" data-act="new-song" aria-label="New song">${ico('plus')}</button>
+    <button class="ibtn" data-act="ly-open" aria-label="Find lyrics">${ico('down')}</button><button class="ibtn" data-act="new-song" aria-label="New song">${ico('plus')}</button>
     <button class="ibtn ${sel ? 'on' : ''}" data-act="toggle-select" aria-label="Select songs">${ico('select')}</button>
   </div></header>
   ${X.hooks.teamBar ? X.hooks.teamBar() : ''}
@@ -344,7 +344,8 @@ function renderList() {
     box.innerHTML = `<div class="empty"><div class="eg">${ico('music')}</div><h2>Your songbook is empty</h2>
       <p>Bring in your SongbookPro backup, add a PDF, or write a song.</p>
       <label class="btn primary file">${ico('up')} Import .sbp or PDF<input type="file" multiple data-import></label>
-      <button class="btn" data-act="new-song">${ico('edit')} Write a song</button></div>`;
+      <button class="btn" data-act="new-song">${ico('edit')} Write a song</button>
+      <button class="btn" data-act="ly-open">${ico('down')} Find free lyrics</button></div>`;
     renderSelbar(); return;
   }
   if (!arr.length) { box.innerHTML = '<p class="muted pad center">No songs match.</p>'; renderSelbar(); return; }

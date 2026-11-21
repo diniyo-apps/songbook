@@ -474,6 +474,7 @@
     b.querySelector('.sb-fill').style.width = '100%';
     progT = setTimeout(() => { b.className = 'syncbar'; }, ok ? 1600 : 3200);
   }
+  X.prog = prog; X.progEnd = progEnd;
   function paintStatus() { const e = $('#cloudstat'); if (e) e.textContent = C.busy ? 'Syncing…' : 'Last sync: ' + when(C.last); }
   A['cl-sync'] = () => sync(true);
   A['cl-out'] = () => confirmBox('Sign out?', 'The songs stay on this phone. You will stop getting shared updates until you sign in again.', 'Sign out', () => { dropSession(); X.render(); toast('Signed out'); });
